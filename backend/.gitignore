@@ -1,2 +1,11 @@
-node_modules
+# Python virtual environment
+crawler/venv/
+venv/
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# Environment files
 .env
