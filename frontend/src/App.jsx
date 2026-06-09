@@ -22,15 +22,42 @@ const FILTERS = [
 const VIEW_TABS = ["관계망", "추이", "기사 근거"];
 
 const NODE_LAYOUTS = [
-  { x: 72, y: 16 },
-  { x: 80, y: 36 },
-  { x: 70, y: 58 },
-  { x: 44, y: 72 },
-  { x: 16, y: 58 },
-  { x: 8, y: 36 },
-  { x: 18, y: 16 },
-  { x: 44, y: 5 },
+  { x: 64, y: 26 },
+  { x: 72, y: 42 },
+  { x: 63, y: 61 },
+  { x: 47, y: 68 },
+  { x: 31, y: 60 },
+  { x: 25, y: 42 },
+  { x: 34, y: 25 },
+  { x: 50, y: 18 },
+  { x: 80, y: 27 },
+  { x: 82, y: 60 },
+  { x: 58, y: 82 },
+  { x: 22, y: 76 },
+  { x: 14, y: 52 },
+  { x: 19, y: 20 },
+  { x: 44, y: 8 },
+  { x: 74, y: 12 },
+  { x: 88, y: 43 },
+  { x: 71, y: 76 },
+  { x: 39, y: 86 },
+  { x: 10, y: 34 },
 ];
+
+const AMBIENT_DOTS = Array.from({ length: 150 }, (_, index) => {
+  const column = index % 15;
+  const row = Math.floor(index / 15);
+  const wave = Math.sin(index * 1.7);
+  const drift = Math.cos(index * 0.9);
+
+  return {
+    id: index,
+    x: 7 + column * 6.2 + drift * 1.8,
+    y: 12 + row * 7.8 + wave * 2.4,
+    size: 1.2 + ((index * 7) % 4) * 0.55,
+    alpha: 0.08 + ((index * 11) % 6) * 0.025,
+  };
+});
 
 function App() {
   const [trends, setTrends] = useState([]);
@@ -144,22 +171,27 @@ function App() {
         )
       : 0;
   const relationBuckets = relatedKeywords.slice(0, 4);
+  const relationNodes = useMemo(
+    () =>
+      relatedKeywords.slice(0, NODE_LAYOUTS.length).map((item, index) => {
+        const layout = NODE_LAYOUTS[index % NODE_LAYOUTS.length];
+        const strength = item.count / maxRelatedCount;
+
+        return {
+          ...item,
+          x: layout.x,
+          y: layout.y,
+          size: 10 + strength * 18,
+          alpha: 0.38 + strength * 0.5,
+          strength,
+        };
+      }),
+    [relatedKeywords, maxRelatedCount]
+  );
 
   const handleSearch = (event) => {
     event.preventDefault();
     selectKeyword(keyword);
-  };
-
-  const getRelatedNodeStyle = (index, count) => {
-    const layout = NODE_LAYOUTS[index % NODE_LAYOUTS.length];
-    const strength = count / maxRelatedCount;
-
-    return {
-      left: `${layout.x}%`,
-      top: `${layout.y}%`,
-      "--node-scale": 0.92 + strength * 0.18,
-      "--relation-alpha": 0.28 + strength * 0.42,
-    };
   };
 
   return (
@@ -309,40 +341,78 @@ function App() {
             className="relation-lines"
             viewBox="0 0 100 100"
             preserveAspectRatio="none"
+            aria-hidden="true"
           >
-            {relatedKeywords.map((relatedKeyword, index) => {
-              const layout = NODE_LAYOUTS[index % NODE_LAYOUTS.length];
+            {relationNodes.map((node) => (
+              <line
+                key={`${node.keyword}-line`}
+                x1="50"
+                y1="46"
+                x2={node.x}
+                y2={node.y}
+                strokeWidth={0.2 + node.strength * 0.85}
+                opacity={0.2 + node.strength * 0.58}
+              />
+            ))}
+            {relationNodes.slice(0, 12).map((node, index) => {
+              const nextNode = relationNodes[(index + 3) % relationNodes.length];
+
+              if (!nextNode || index % 2 !== 0) {
+                return null;
+              }
 
               return (
                 <line
-                  key={`${relatedKeyword.keyword}-line`}
-                  x1="50"
-                  y1="44"
-                  x2={layout.x}
-                  y2={layout.y}
-                  strokeWidth={
-                    0.25 + (relatedKeyword.count / maxRelatedCount) * 0.65
-                  }
+                  key={`${node.keyword}-${nextNode.keyword}-mesh`}
+                  x1={node.x}
+                  y1={node.y}
+                  x2={nextNode.x}
+                  y2={nextNode.y}
+                  className="mesh-line"
+                  strokeWidth={0.12 + Math.min(node.strength, nextNode.strength) * 0.32}
                 />
               );
             })}
           </svg>
 
-          <article className="focus-node">
-            <span>Center Keyword</span>
-            <strong>{selectedKeyword || "키워드 선택"}</strong>
-            <small>
-              {selectedMentions}건 언급 · {relatedArticleCount}개 기사에서 관계 분석
-            </small>
-          </article>
+          <div className="ambient-dots" aria-hidden="true">
+            {AMBIENT_DOTS.map((dot) => (
+              <i
+                key={dot.id}
+                style={{
+                  left: `${dot.x}%`,
+                  top: `${dot.y}%`,
+                  width: `${dot.size}px`,
+                  height: `${dot.size}px`,
+                  opacity: dot.alpha,
+                }}
+              />
+            ))}
+          </div>
 
-          {relatedKeywords.length > 0 ? (
-            relatedKeywords.map((relatedKeyword, index) => (
+          <button
+            className="focus-dot"
+            type="button"
+            title={`${selectedKeyword || "키워드 선택"} · ${selectedMentions}건 언급`}
+          >
+            <span>{selectedKeyword || "키워드 선택"}</span>
+            <strong>{selectedMentions}</strong>
+          </button>
+
+          {relationNodes.length > 0 ? (
+            relationNodes.map((relatedKeyword) => (
               <button
                 key={relatedKeyword.keyword}
                 className="related-node"
                 type="button"
-                style={getRelatedNodeStyle(index, relatedKeyword.count)}
+                title={`${relatedKeyword.keyword} · ${relatedKeyword.count}회 공동 등장`}
+                style={{
+                  left: `${relatedKeyword.x}%`,
+                  top: `${relatedKeyword.y}%`,
+                  width: `${relatedKeyword.size}px`,
+                  height: `${relatedKeyword.size}px`,
+                  "--relation-alpha": relatedKeyword.alpha,
+                }}
                 onClick={() => {
                   setKeyword(relatedKeyword.keyword);
                   selectKeyword(relatedKeyword.keyword);

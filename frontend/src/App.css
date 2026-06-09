@@ -359,6 +359,11 @@ h1 {
   filter: drop-shadow(0 8px 12px rgba(37, 99, 235, 0.14));
 }
 
+.relation-lines .mesh-line {
+  stroke: rgba(15, 23, 42, 0.18);
+  filter: none;
+}
+
 .focus-node {
   position: absolute;
   top: 44%;
@@ -368,6 +373,98 @@ h1 {
   transform: translate(-50%, -50%);
   text-align: center;
   z-index: 3;
+}
+
+.ambient-dots {
+  position: absolute;
+  inset: 72px 28px 92px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ambient-dots i {
+  position: absolute;
+  display: block;
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  transform: translate(-50%, -50%);
+}
+
+.focus-dot {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #020617;
+  color: #172033;
+  box-shadow:
+    0 0 0 8px rgba(2, 6, 23, 0.08),
+    0 18px 38px rgba(2, 6, 23, 0.22);
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.focus-dot::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgba(2, 6, 23, 0.16);
+  border-radius: inherit;
+}
+
+.focus-dot span,
+.focus-dot strong,
+.related-node span,
+.related-node strong {
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  max-width: 150px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #172033;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  transform: translate(-50%, -12px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.focus-dot span,
+.related-node span {
+  bottom: calc(100% + 10px);
+}
+
+.focus-dot strong,
+.related-node strong {
+  top: calc(100% + 8px);
+  color: #475569;
+  transform: translate(-50%, 12px);
+}
+
+.focus-dot:hover span,
+.focus-dot:hover strong,
+.related-node:hover span,
+.related-node:hover strong,
+.related-node:focus-visible span,
+.related-node:focus-visible strong {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .focus-node strong {
@@ -386,53 +483,31 @@ h1 {
 .related-node {
   position: absolute;
   z-index: 2;
-  display: grid;
-  width: 142px;
-  min-height: 76px;
-  place-items: center;
-  border: 1px solid rgba(37, 99, 235, var(--relation-alpha));
-  border-radius: 8px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #172033;
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  display: block;
+  min-width: 8px;
+  min-height: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(2, 6, 23, var(--relation-alpha));
+  color: transparent;
+  box-shadow:
+    0 0 0 4px rgba(2, 6, 23, 0.045),
+    0 9px 20px rgba(2, 6, 23, 0.22);
   cursor: pointer;
-  transform: translate(-50%, -50%) scale(var(--node-scale));
+  transform: translate(-50%, -50%);
   transition:
     transform 180ms ease,
-    border-color 180ms ease,
+    background 180ms ease,
     box-shadow 180ms ease;
 }
 
 .related-node:hover {
-  border-color: rgba(20, 184, 166, 0.82);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
-  transform: translate(-50%, -50%) scale(calc(var(--node-scale) + 0.05));
-}
-
-.related-node span,
-.related-node strong {
-  display: block;
-}
-
-.related-node span {
-  max-width: 100%;
-  overflow: hidden;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.related-node strong {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  margin-top: 7px;
-  place-items: center;
-  border-radius: 999px;
-  background: #e0f2fe;
-  color: #0369a1;
-  font-size: 13px;
+  background: #0f766e;
+  box-shadow:
+    0 0 0 8px rgba(15, 118, 110, 0.12),
+    0 16px 34px rgba(15, 23, 42, 0.26);
+  transform: translate(-50%, -50%) scale(1.3);
 }
 
 .relation-summary {
@@ -1204,5 +1279,59 @@ h1 {
 
   .relation-summary {
     order: 2;
+  }
+}
+
+@media (max-width: 560px) {
+  .map-panel {
+    display: block;
+    min-height: 560px;
+    padding-top: 0;
+  }
+
+  .relation-lines {
+    display: block;
+  }
+
+  .ambient-dots {
+    inset: 96px 14px 148px;
+  }
+
+  .focus-dot {
+    position: absolute;
+    top: 46%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    margin: 0;
+    transform: translate(-50%, -50%);
+  }
+
+  .related-node {
+    position: absolute;
+    width: var(--mobile-node-size, inherit);
+    margin: 0;
+    transform: translate(-50%, -50%);
+  }
+
+  .related-node:hover {
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+
+  .relation-summary,
+  .relation-inspector {
+    position: absolute;
+    width: min(190px, calc(50% - 22px));
+    margin: 0;
+  }
+
+  .relation-summary {
+    left: 14px;
+    bottom: 14px;
+  }
+
+  .relation-inspector {
+    right: 14px;
+    bottom: 14px;
   }
 }
