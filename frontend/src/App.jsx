@@ -19,6 +19,8 @@ const FILTERS = [
   { label: "전체", value: "all" },
 ];
 
+const VIEW_TABS = ["관계망", "추이", "기사 근거"];
+
 const NODE_LAYOUTS = [
   { x: 72, y: 16 },
   { x: 80, y: 36 },
@@ -134,6 +136,14 @@ function App() {
     () => clusters.find((cluster) => cluster.count > 0),
     [clusters]
   );
+  const avgRelationStrength =
+    relatedKeywords.length > 0
+      ? Math.round(
+          relatedKeywords.reduce((sum, item) => sum + item.count, 0) /
+            relatedKeywords.length
+        )
+      : 0;
+  const relationBuckets = relatedKeywords.slice(0, 4);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -160,25 +170,40 @@ function App() {
         "--mouse-y": `${mousePosition.y}%`,
       }}
     >
+      <nav className="topbar" aria-label="서비스 네비게이션">
+        <div className="brand-mark">TR</div>
+        <div className="workspace-copy">
+          <strong>Trend Radar</strong>
+          <span>News keyword intelligence</span>
+        </div>
+        <div className="topbar-status">
+          <span className="status-dot" />
+          Live crawl
+        </div>
+      </nav>
+
       <header className="app-header">
         <div>
-          <p className="eyebrow">Live RSS Intelligence</p>
-          <h1>Trend Radar</h1>
+          <p className="eyebrow">RSS Intelligence Workspace</p>
+          <h1>키워드 흐름과 관계를 한 번에 읽기</h1>
           <p className="subtitle">
-            크롤링한 뉴스 키워드를 중심으로 인기 흐름, 관계망, 기사 근거를
-            한 화면에서 탐색합니다.
+            인기 키워드, 공동 등장 관계, 기사 근거를 연결해 지금 주목할 신호를
+            빠르게 판별합니다.
           </p>
         </div>
 
-        <form className="search-form" onSubmit={handleSearch}>
-          <input
-            type="text"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="키워드 검색"
-          />
-          <button type="submit">분석</button>
-        </form>
+        <div className="header-actions">
+          <form className="search-form" onSubmit={handleSearch}>
+            <input
+              type="text"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="키워드 검색"
+            />
+            <button type="submit">분석</button>
+          </form>
+          <span className="refresh-note">기준 날짜 {latestDate}</span>
+        </div>
       </header>
 
       <section className="control-strip">
@@ -194,29 +219,46 @@ function App() {
             </button>
           ))}
         </div>
-        <span className="refresh-note">기준 날짜 {latestDate}</span>
+        <div className="view-tabs" aria-label="보기 전환">
+          {VIEW_TABS.map((tab, index) => (
+            <button
+              key={tab}
+              className={index === 0 ? "is-active" : ""}
+              type="button"
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="summary-grid">
         <article className="metric-card">
           <span>수집 키워드</span>
           <strong>{trends.length}</strong>
+          <small>현재 범위 내 랭킹 후보</small>
         </article>
         <article className="metric-card">
           <span>총 언급량</span>
           <strong>{totalMentions}</strong>
+          <small>기사 키워드 집계 합산</small>
         </article>
         <article className="metric-card">
           <span>TOP 키워드</span>
           <strong>{topKeyword?.keyword || "-"}</strong>
+          <small>{topKeyword ? `${topKeyword.count}건 감지` : "데이터 없음"}</small>
         </article>
         <article className="metric-card">
           <span>주요 클러스터</span>
           <strong>{strongestCluster?.name || "-"}</strong>
+          <small>
+            {strongestCluster ? `${strongestCluster.count}건 묶음` : "분류 대기"}
+          </small>
         </article>
         <article className="metric-card">
           <span>연관 기사</span>
           <strong>{relatedArticleCount}</strong>
+          <small>{selectedKeyword || "키워드 선택 필요"}</small>
         </article>
       </section>
 
@@ -252,6 +294,17 @@ function App() {
         </aside>
 
         <section className="map-panel">
+          <div className="map-toolbar">
+            <div>
+              <span>Relationship Map</span>
+              <strong>{selectedKeyword || "키워드 선택"}</strong>
+            </div>
+            <div className="map-legend" aria-label="관계망 범례">
+              <span><i className="legend-line" /> 공동 등장</span>
+              <span><i className="legend-node" /> 연관 키워드</span>
+            </div>
+          </div>
+
           <svg
             className="relation-lines"
             viewBox="0 0 100 100"
@@ -314,6 +367,40 @@ function App() {
                 : "관계 없음"}
             </small>
           </article>
+
+          <aside className="relation-inspector">
+            <div>
+              <span>Avg. strength</span>
+              <strong>{avgRelationStrength}</strong>
+            </div>
+            <div className="relation-bars">
+              {relationBuckets.length > 0 ? (
+                relationBuckets.map((item) => (
+                  <button
+                    key={item.keyword}
+                    type="button"
+                    onClick={() => {
+                      setKeyword(item.keyword);
+                      selectKeyword(item.keyword);
+                    }}
+                  >
+                    <span>{item.keyword}</span>
+                    <i
+                      style={{
+                        width: `${Math.max(
+                          12,
+                          (item.count / maxRelatedCount) * 100
+                        )}%`,
+                      }}
+                    />
+                    <strong>{item.count}</strong>
+                  </button>
+                ))
+              ) : (
+                <small>연관 강도 데이터 없음</small>
+              )}
+            </div>
+          </aside>
         </section>
 
         <section className="panel chart-panel">
