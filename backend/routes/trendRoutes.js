@@ -216,6 +216,78 @@ router.get("/related/:keyword", async (req, res) => {
   }
 });
 
+router.get("/network", async (req, res) => {
+  try {
+    const { days = "1" } = req.query;
+    const latestDate = await getLatestDate();
+    const startDate = getStartDate(latestDate, days);
+    const articleMatch = startDate ? { publishedAt: { $gte: startDate } } : {};
+    const trendMatch = startDate ? { date: { $gte: startDate } } : {};
+
+    const [articles, trendRows] = await Promise.all([
+      Article.find(articleMatch).select("keywords").lean(),
+      Trend.aggregate([
+        { $match: trendMatch },
+        {
+          $group: {
+            _id: "$keyword",
+            keyword: { $first: "$keyword" },
+            count: { $sum: "$count" },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 80 },
+      ]),
+    ]);
+
+    const counts = new Map(
+      trendRows.map((trend) => [trend.keyword, trend.count])
+    );
+    const linkCounts = new Map();
+
+    articles.forEach((article) => {
+      const keywords = [...new Set(article.keywords || [])]
+        .filter((keyword) => counts.has(keyword))
+        .slice(0, 12);
+
+      for (let i = 0; i < keywords.length; i += 1) {
+        for (let j = i + 1; j < keywords.length; j += 1) {
+          const pair = [keywords[i], keywords[j]].sort();
+          const key = pair.join("|||");
+
+          linkCounts.set(key, (linkCounts.get(key) || 0) + 1);
+        }
+      }
+    });
+
+    const nodes = trendRows.map((trend) => ({
+      keyword: trend.keyword,
+      count: trend.count,
+    }));
+
+    const links = [...linkCounts.entries()]
+      .map(([key, count]) => {
+        const [source, target] = key.split("|||");
+
+        return { source, target, count };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 220);
+
+    res.json({
+      latestDate,
+      startDate,
+      nodes,
+      links,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "전체 키워드 네트워크 조회 실패",
+      error: error.message,
+    });
+  }
+});
+
 router.get("/:keyword", async (req, res) => {
   try {
     const { keyword } = req.params;
