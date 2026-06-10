@@ -2,6 +2,18 @@
   box-sizing: border-box;
 }
 
+html {
+  background: #0c1018;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   background:
@@ -851,12 +863,14 @@ h1 {
 
 /* Lazyweb-informed dashboard refinement */
 body {
-  background: #f5f7fb;
+  background: #0c1018;
   color: #182033;
 }
 
 .app {
   overflow: visible;
+  width: 100%;
+  height: 100%;
   padding: 0 28px 34px;
 }
 
@@ -948,7 +962,8 @@ body {
   gap: 10px;
   position: relative;
   width: 100vw;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   overflow: hidden;
   padding: 16px 28px 18px;
   max-width: none;
@@ -1359,15 +1374,23 @@ body {
 }
 
 .density-hero .chart-box {
-  height: 172px;
-  overflow: hidden;
+  height: 128px;
+  overflow: visible;
   border-color: rgba(226, 232, 240, 0.12);
   background: rgba(8, 12, 20, 0.36);
+}
+
+.density-hero .chart-panel {
+  overflow: visible;
 }
 
 .density-hero .chart-box .recharts-wrapper,
 .density-hero .chart-box .recharts-surface {
   overflow: visible;
+}
+
+.density-hero .recharts-tooltip-wrapper {
+  z-index: 20;
 }
 
 .density-hero .article-list {
@@ -1641,7 +1664,8 @@ h1 {
 
 .article-list {
   max-height: 258px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 2px;
 }
 
@@ -1844,8 +1868,8 @@ h1 {
 }
 
 .density-hero > .app-header {
-  top: 16px;
-  left: 16px;
+  top: 98px;
+  left: 24px;
   display: block;
   width: 250px;
   overflow: hidden;
@@ -1982,7 +2006,8 @@ h1 {
 }
 
 .density-hero .article-list {
-  max-height: calc(100vh - 530px);
+  max-height: calc(100vh - 422px);
+  margin-top: 18px;
 }
 
 /* Minimal panel pass: make controls read like annotations, not cards. */
@@ -2089,6 +2114,7 @@ h1 {
 }
 
 .density-hero .trend-panel {
+  top: 82px;
   bottom: auto;
   max-height: 342px;
   border-top: 0;
@@ -2265,6 +2291,14 @@ h1 {
   background: var(--text);
 }
 
+.app,
+.density-hero {
+  height: 100vh;
+  min-height: 0;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
 .density-node-top {
   background: var(--primary);
 }
@@ -2299,6 +2333,19 @@ h1 {
   backdrop-filter: blur(18px) saturate(130%);
 }
 
+.density-hero > .app-header,
+.density-hero .trend-panel {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.018)),
+    rgba(8, 13, 20, 0.82);
+  box-shadow:
+    0 26px 90px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(103, 232, 249, 0.025),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
 .density-hero .rank {
   width: 2ch;
   font-variant-numeric: tabular-nums;
@@ -2321,6 +2368,339 @@ h1 {
 
 .density-hero .view-tabs {
   display: none;
+}
+
+.density-hero > .control-strip {
+  right: 16px;
+  width: 250px;
+  max-width: 250px;
+  justify-content: flex-start;
+}
+
+.density-hero .trend-node:hover,
+.density-hero .trend-node.is-active {
+  background: rgba(125, 211, 252, 0.035);
+}
+
+.density-hero .trend-node.is-active {
+  box-shadow: none;
+}
+
+.density-hero .trend-node:hover::before,
+.density-hero .trend-node.is-active::before {
+  background: rgba(125, 211, 252, 0.78);
+}
+
+.density-hero .trend-summary {
+  margin: 8px 0 12px;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(125, 211, 252, 0.06);
+  color: #bfdbfe;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.density-hero .chart-box {
+  height: 158px;
+}
+
+.density-hero .article-list {
+  max-height: calc(100vh - 494px);
+  margin-top: 18px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.density-hero .article-list-wrapper {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+}
+
+.density-hero .article-fade {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 52px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(8, 13, 20, 0),
+    rgba(8, 13, 20, 0.92)
+  );
+}
+
+.density-hero .article-expand-button {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(103, 232, 249, 0.74);
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.density-hero .article-expand-button:hover {
+  color: var(--primary);
+  text-shadow: 0 0 10px rgba(103, 232, 249, 0.45);
+  transform: translateY(-1px);
+}
+
+/* Atmospheric radar polish */
+html,
+body {
+  background: #05080f;
+}
+
+.density-hero {
+  --panel-bg: rgba(8, 13, 20, 0.72);
+  --panel-border: rgba(148, 163, 184, 0.14);
+  --primary: #67e8f9;
+  --accent: #5eead4;
+  --blue: #60a5fa;
+  --purple: #818cf8;
+  --text: #e5e7eb;
+  --sub-text: #94a3b8;
+  --muted-text: #64748b;
+  background:
+    radial-gradient(circle at var(--focus-x) var(--focus-y), rgba(103, 232, 249, 0.16), transparent 20%),
+    radial-gradient(circle at 66% 34%, rgba(129, 140, 248, 0.16), transparent 24%),
+    radial-gradient(circle at 30% 72%, rgba(96, 165, 250, 0.12), transparent 23%),
+    radial-gradient(circle at 76% 75%, rgba(245, 158, 11, 0.16), transparent 24%),
+    #05080f;
+}
+
+.density-hero::before {
+  inset: 8%;
+  border-color: rgba(148, 163, 184, 0.1);
+  box-shadow:
+    inset 0 0 90px rgba(96, 165, 250, 0.035),
+    0 0 120px rgba(103, 232, 249, 0.035);
+}
+
+.density-hero::after {
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.028) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.density-cloud i {
+  background: rgba(226, 232, 240, 0.72);
+  box-shadow: 0 0 5px rgba(103, 232, 249, 0.11);
+}
+
+.density-core {
+  background:
+    radial-gradient(circle at var(--focus-x) var(--focus-y), rgba(229, 231, 235, 0.28) 0 1px, transparent 2px),
+    radial-gradient(circle at var(--focus-x) var(--focus-y), rgba(103, 232, 249, 0.16), transparent 13%);
+  background-size: 13px 13px, auto;
+  mask-image: radial-gradient(circle at var(--focus-x) var(--focus-y), black 0%, transparent 46%);
+}
+
+.density-links .density-link-related {
+  stroke: rgba(103, 232, 249, 0.78);
+}
+
+.density-links .density-link-network {
+  stroke: rgba(148, 163, 184, 0.14);
+}
+
+.density-links .density-link-top {
+  stroke: rgba(96, 165, 250, 0.18);
+}
+
+.density-node {
+  background: hsl(var(--node-hue) 70% 73%);
+  box-shadow:
+    0 0 0 2px hsl(var(--node-hue) 70% 73% / 0.09),
+    0 0 16px hsl(var(--node-hue) 70% 73% / 0.2);
+}
+
+.density-node.is-selected,
+.density-node-selected {
+  background: var(--text);
+  box-shadow:
+    0 0 0 12px rgba(103, 232, 249, 0.12),
+    0 0 40px rgba(103, 232, 249, 0.58),
+    0 0 110px rgba(103, 232, 249, 0.24);
+}
+
+.density-node.is-related {
+  box-shadow:
+    0 0 0 5px rgba(94, 234, 212, 0.08),
+    0 0 22px rgba(94, 234, 212, 0.25);
+}
+
+.density-hero > .app-header,
+.density-hero .trend-panel,
+.density-hero .chart-panel {
+  border: 1px solid var(--panel-border);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015)),
+    var(--panel-bg);
+  box-shadow:
+    0 22px 80px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(14px) saturate(132%);
+}
+
+.density-hero .trend-node:hover,
+.density-hero .trend-node.is-active {
+  background: rgba(103, 232, 249, 0.045);
+}
+
+.density-hero .trend-node:hover::before,
+.density-hero .trend-node.is-active::before {
+  background: var(--primary);
+}
+
+.density-hero .count-badge,
+.density-hero .trend-node:hover .node-copy strong,
+.density-hero .trend-node.is-active .node-copy strong {
+  color: var(--primary);
+}
+
+.density-hero .chart-box,
+.density-hero .article-link {
+  border-color: rgba(148, 163, 184, 0.1);
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.density-hero .article-link {
+  width: 100%;
+  min-width: 0;
+  box-shadow: none;
+}
+
+.density-hero .article-link strong {
+  color: var(--text);
+}
+
+.density-hero .article-link span {
+  color: rgba(148, 163, 184, 0.72);
+  font-size: 11px;
+}
+
+.density-hero .trend-summary {
+  border-color: rgba(103, 232, 249, 0.14);
+  background: rgba(103, 232, 249, 0.07);
+  color: #bae6fd;
+}
+
+.density-hero .detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.density-hero .detail-heading > div:first-child {
+  min-width: 0;
+}
+
+.density-hero .detail-heading h2 {
+  max-width: 150px;
+  margin-bottom: 0;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.density-hero .time-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 2px;
+  color: rgba(148, 163, 184, 0.75);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.density-hero .time-filter button {
+  border: 0;
+  padding: 0 0 3px;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.75);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.density-hero .time-filter button:hover {
+  color: #bae6fd;
+}
+
+.density-hero .time-filter button.is-active {
+  color: var(--primary);
+  box-shadow: inset 0 -1px 0 var(--primary);
+  text-shadow: 0 0 10px rgba(103, 232, 249, 0.45);
+}
+
+.density-hero > .control-strip {
+  width: 250px;
+  max-width: 250px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.density-hero .segmented-control button {
+  color: var(--muted-text);
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease;
+}
+
+.density-hero .segmented-control button:hover,
+.density-hero .segmented-control button.is-active {
+  color: var(--primary);
+  text-shadow: 0 0 18px rgba(103, 232, 249, 0.28);
+}
+
+@media (max-width: 1180px) {
+  .density-hero .chart-panel {
+    margin-top: 12px;
+  }
+}
+
+.density-hero > .insight-grid {
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+}
+
+.density-hero .chart-panel {
+  right: 0;
+  bottom: auto;
+  max-height: min(720px, calc(100vh - 122px));
+  overflow: visible;
+  border-radius: 12px;
+}
+
+.density-hero .map-panel {
+  left: 284px;
+  right: 284px;
 }
 
 @media (max-width: 1180px) {

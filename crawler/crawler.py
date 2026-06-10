@@ -1,7 +1,7 @@
 import os
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import feedparser
 from dotenv import load_dotenv
@@ -13,24 +13,24 @@ client = MongoClient(os.getenv("MONGO_URI"))
 db = client[os.getenv("MONGO_DB", "test")]
 
 RSS_FEEDS = {
-    "hani": [
-        "https://www.hani.co.kr/rss/",
+    "yonhap": [
+        "https://www.yna.co.kr/rss/news.xml",
     ],
-    "donga": [
-        "https://rss.donga.com/total.xml",
+    "chosun": [
+        "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
     ],
-    "khan": [
-        "https://www.khan.co.kr/rss/rssdata/total_news.xml",
-        "https://www.khan.co.kr/rss/rssdata/politic_news.xml",
-        "https://www.khan.co.kr/rss/rssdata/economy_news.xml",
-        "https://www.khan.co.kr/rss/rssdata/society_news.xml",
+    "mk": [
+        "https://www.mk.co.kr/rss/30000001/",
+        "https://www.mk.co.kr/rss/30100041/",
     ],
-    "hankyung": [
-        "https://www.hankyung.com/feed/all-news",
-        "https://www.hankyung.com/feed/economy",
-        "https://www.hankyung.com/feed/it",
-        "https://www.hankyung.com/feed/politics",
-        "https://www.hankyung.com/feed/society",
+    "sbs": [
+        "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER",
+    ],
+    "etnews": [
+        "https://rss.etnews.com/Section902.xml",
+    ],
+    "jtbc": [
+        "https://fs.jtbc.co.kr/RSS/newsflash.xml",
     ],
 }
 
@@ -92,14 +92,23 @@ def extract_keywords(title):
     return keywords
 
 
+def get_entry_date(entry, fallback_date):
+    parsed_date = entry.get("published_parsed") or entry.get("updated_parsed")
+
+    if not parsed_date:
+        return fallback_date
+
+    return datetime(*parsed_date[:6]).strftime("%Y-%m-%d")
+
+
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
-    counter = Counter()
+    start_date = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
+    counters_by_date = defaultdict(Counter)
     source_counts = defaultdict(int)
     seen_urls = set()
     article_count = 0
-
-    db.trends.delete_many({"date": today})
+    touched_dates = set()
 
     for source, rss_urls in RSS_FEEDS.items():
         for rss_url in rss_urls:
@@ -114,7 +123,13 @@ def main():
 
                 seen_urls.add(link)
                 keywords = extract_keywords(title)
-                counter.update(keywords)
+                article_date = get_entry_date(entry, today)
+
+                if article_date < start_date or article_date > today:
+                    continue
+
+                counters_by_date[article_date].update(keywords)
+                touched_dates.add(article_date)
                 source_counts[source] += 1
                 article_count += 1
 
@@ -126,25 +141,28 @@ def main():
                             "url": link,
                             "source": source,
                             "feedUrl": rss_url,
-                            "publishedAt": today,
+                            "publishedAt": article_date,
                             "keywords": keywords,
                         }
                     },
                     upsert=True,
                 )
 
-    for keyword, count in counter.most_common(100):
-        db.trends.update_one(
-            {"keyword": keyword, "date": today},
-            {
-                "$set": {
-                    "keyword": keyword,
-                    "date": today,
-                    "count": count,
-                }
-            },
-            upsert=True,
-        )
+    for article_date in touched_dates:
+        db.trends.delete_many({"date": article_date})
+
+        for keyword, count in counters_by_date[article_date].most_common(100):
+            db.trends.update_one(
+                {"keyword": keyword, "date": article_date},
+                {
+                    "$set": {
+                        "keyword": keyword,
+                        "date": article_date,
+                        "count": count,
+                    }
+                },
+                upsert=True,
+            )
 
     print("크롤링 완료")
     print(f"수집 기사 수: {article_count}")
@@ -152,9 +170,11 @@ def main():
     for source, count in sorted(source_counts.items()):
         print(source, count)
 
-    print("수집 키워드 TOP 10:")
-    for keyword, count in counter.most_common(10):
-        print(keyword, count)
+    print("날짜별 수집 키워드 TOP 10:")
+    for article_date in sorted(touched_dates, reverse=True):
+        print(article_date)
+        for keyword, count in counters_by_date[article_date].most_common(10):
+            print(keyword, count)
 
 
 if __name__ == "__main__":

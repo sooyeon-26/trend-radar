@@ -18,8 +18,6 @@ const FILTERS = [
   { label: "7일", value: "7" },
 ];
 
-const VIEW_TABS = ["관계망", "추이", "기사"];
-
 const NODE_LAYOUTS = [
   { x: 64, y: 26 },
   { x: 72, y: 42 },
@@ -53,7 +51,7 @@ const CLUSTER_CENTERS = [
 ];
 
 const TOP_NODE_LAYOUTS = [
-  { x: 50, y: 50 },
+  { x: 48, y: 52 },
   { x: 42, y: 39 },
   { x: 60, y: 40 },
   { x: 37, y: 55 },
@@ -110,6 +108,7 @@ function App() {
   const [latestDate, setLatestDate] = useState("-");
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [graphZoom, setGraphZoom] = useState(1);
+  const [articlesExpanded, setArticlesExpanded] = useState(false);
 
   useEffect(() => {
     fetchDashboard(range);
@@ -171,6 +170,7 @@ function App() {
     const encodedKeyword = encodeURIComponent(trimmedKeyword);
 
     setSelectedKeyword(trimmedKeyword);
+    setArticlesExpanded(false);
 
     Promise.all([
       axios.get(`${API_BASE_URL}/${encodedKeyword}`),
@@ -208,6 +208,24 @@ function App() {
         )
       : 0;
   const relationBuckets = relatedKeywords.slice(0, 4);
+  const relatedKeywordSet = useMemo(
+    () => new Set(relatedKeywords.map((item) => item.keyword)),
+    [relatedKeywords]
+  );
+  const trendDeltaSummary = useMemo(() => {
+    if (trendHistory.length < 2) {
+      return "변화 데이터 대기";
+    }
+
+    const recentHistory = trendHistory.slice(-3);
+    const firstCount = recentHistory[0]?.count || 0;
+    const lastCount = recentHistory[recentHistory.length - 1]?.count || 0;
+    const delta = lastCount - firstCount;
+    const direction = delta > 0 ? "증가" : delta < 0 ? "감소" : "변동 없음";
+    const signedDelta = delta > 0 ? `+${delta}` : `${delta}`;
+
+    return `최근 ${recentHistory.length}일 ${signedDelta}건 ${direction}`;
+  }, [trendHistory]);
   const relationNodes = useMemo(
     () =>
       relatedKeywords.slice(0, NODE_LAYOUTS.length).map((item, index) => {
@@ -366,8 +384,8 @@ function App() {
       addNode(
         { keyword: selectedKeyword },
         {
-          x: currentSelectedNode?.x || 50,
-          y: currentSelectedNode?.y || 50,
+          x: currentSelectedNode?.x || 48,
+          y: currentSelectedNode?.y || 52,
           size: 22,
           alpha: 0.96,
           strength: 1,
@@ -420,65 +438,8 @@ function App() {
         from,
         to,
         strength: link.count / maxNetworkLinkCount,
+        length: Math.hypot(from.x - to.x, from.y - to.y),
         type: isSelectedLink ? "related" : isTopLink ? "top" : "network",
-      });
-    });
-
-    const topNodes = trends
-      .slice(0, 10)
-      .map((item) => nodeMap.get(item.keyword))
-      .filter(Boolean);
-
-    topNodes.forEach((node, index) => {
-      const nextNode = topNodes[index + 1];
-      const radialNode = topNodes[(index + 3) % topNodes.length];
-
-      if (nextNode) {
-        links.push({
-          from: node,
-          to: nextNode,
-          strength: Math.min(node.strength, nextNode.strength) * 0.5,
-          type: "top",
-        });
-      }
-
-      if (radialNode && index % 2 === 0) {
-        links.push({
-          from: node,
-          to: radialNode,
-          strength: Math.min(node.strength, radialNode.strength) * 0.36,
-          type: "top",
-        });
-      }
-    });
-
-    clusters.forEach((cluster) => {
-      const clusterNodes = cluster.keywords
-        .map((item) => nodeMap.get(item.keyword))
-        .filter(Boolean)
-        .slice(0, 12);
-
-      clusterNodes.forEach((node, index) => {
-        const nextNode = clusterNodes[index + 1];
-        const crossNode = clusterNodes[index + 4];
-
-        if (nextNode) {
-          links.push({
-            from: node,
-            to: nextNode,
-            strength: Math.min(node.strength, nextNode.strength),
-            type: "cluster",
-          });
-        }
-
-        if (crossNode && index % 2 === 0) {
-          links.push({
-            from: node,
-            to: crossNode,
-            strength: Math.min(node.strength, crossNode.strength) * 0.72,
-            type: "cluster",
-          });
-        }
       });
     });
 
@@ -493,35 +454,28 @@ function App() {
             from: selectedNode,
             to: relatedNode,
             strength: item.count / maxRelatedCount,
+            length: Math.hypot(selectedNode.x - relatedNode.x, selectedNode.y - relatedNode.y),
             type: "related",
           });
         }
       });
     }
 
-    densityNodes.slice(0, 38).forEach((node, index) => {
-      const nextNode = densityNodes[(index + 7) % densityNodes.length];
-
-      if (nextNode && node.clusterIndex === nextNode.clusterIndex) {
-        links.push({
-          from: node,
-          to: nextNode,
-          strength: Math.min(node.strength, nextNode.strength) * 0.5,
-          type: "mesh",
-        });
-      }
-    });
-
     return links.slice(0, 220);
   }, [
-    clusters,
     densityNodes,
     network,
     relatedKeywords,
     selectedKeyword,
     maxRelatedCount,
-    trends,
   ]);
+
+  const selectedGraphNode = useMemo(
+    () => densityNodes.find((node) => node.keyword === selectedKeyword),
+    [densityNodes, selectedKeyword]
+  );
+  const visibleArticles = articlesExpanded ? articles : articles.slice(0, 5);
+  const hiddenArticleCount = Math.max(0, articles.length - 5);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -550,6 +504,8 @@ function App() {
         "--mouse-x": `${mousePosition.x}%`,
         "--mouse-y": `${mousePosition.y}%`,
         "--graph-zoom": graphZoom,
+        "--focus-x": `${selectedGraphNode?.x || 48}%`,
+        "--focus-y": `${selectedGraphNode?.y || 52}%`,
       }}
     >
       <section
@@ -565,24 +521,24 @@ function App() {
             aria-hidden="true"
           >
             {densityLinks.map((link, index) => (
-              <line
-                key={`${link.from.keyword}-${link.to.keyword}-${index}`}
-                x1={link.from.x}
-                y1={link.from.y}
-                x2={link.to.x}
-                y2={link.to.y}
-                className={`density-link-${link.type}`}
-                strokeWidth={
-                  link.type === "related"
-                    ? 0.12 + link.strength * 0.38
-                    : 0.03 + link.strength * 0.12
-                }
-                opacity={
-                  link.type === "related"
-                    ? 0.22 + link.strength * 0.46
-                    : 0.04 + link.strength * 0.16
-                }
-              />
+            <line
+              key={`${link.from.keyword}-${link.to.keyword}-${index}`}
+              x1={link.from.x}
+              y1={link.from.y}
+              x2={link.to.x}
+              y2={link.to.y}
+              className={`density-link-${link.type}`}
+              strokeWidth={
+                link.type === "related"
+                  ? 0.16 + link.strength * 0.42
+                  : 0.025 + link.strength * 0.1
+              }
+              opacity={
+                link.type === "related"
+                  ? Math.max(0.34, 0.78 - (link.length || 0) / 130)
+                  : Math.max(0.06, 0.18 - (link.length || 0) / 280)
+              }
+            />
             ))}
           </svg>
 
@@ -603,28 +559,42 @@ function App() {
 
           <div className="density-core" aria-hidden="true" />
 
-          {densityNodes.map((node) => (
-            <button
-              key={node.keyword}
-              className={`density-node density-node-${node.source}`}
-              type="button"
-              title={`${node.keyword} · ${node.count}건 · ${node.cluster}`}
-              style={{
-                left: `${node.x}%`,
-                top: `${node.y}%`,
-                width: `${node.size}px`,
-                height: `${node.size}px`,
-                opacity: node.alpha,
-                "--node-hue": node.hue,
-              }}
-              onClick={() => {
-                setKeyword(node.keyword);
-                selectKeyword(node.keyword);
-              }}
-            >
-              <span>{node.keyword}</span>
-            </button>
-          ))}
+          {densityNodes.map((node) => {
+            const isSelected = node.keyword === selectedKeyword;
+            const isRelated = relatedKeywordSet.has(node.keyword);
+            const visibleAlpha = selectedKeyword
+              ? isSelected
+                ? 1
+                : isRelated
+                  ? Math.max(node.alpha, 0.68)
+                  : Math.min(node.alpha, 0.58)
+              : node.alpha;
+
+            return (
+              <button
+                key={node.keyword}
+                className={`density-node density-node-${node.source} ${
+                  isSelected ? "is-selected" : isRelated ? "is-related" : "is-muted"
+                }`}
+                type="button"
+                title={`${node.keyword} · ${node.count}건 · ${node.cluster}`}
+                style={{
+                  left: `${node.x}%`,
+                  top: `${node.y}%`,
+                  width: `${node.size}px`,
+                  height: `${node.size}px`,
+                  opacity: visibleAlpha,
+                  "--node-hue": node.hue,
+                }}
+                onClick={() => {
+                  setKeyword(node.keyword);
+                  selectKeyword(node.keyword);
+                }}
+              >
+                <span>{node.keyword}</span>
+              </button>
+            );
+          })}
         </div>
 
         <header className="app-header">
@@ -642,32 +612,6 @@ function App() {
             </form>
           </div>
         </header>
-
-        <section className="control-strip">
-          <div className="segmented-control" aria-label="기간 필터">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter.value}
-                className={range === filter.value ? "is-active" : ""}
-                type="button"
-                onClick={() => setRange(filter.value)}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-          <div className="view-tabs" aria-label="보기 전환">
-            {VIEW_TABS.map((tab, index) => (
-              <button
-                key={tab}
-                className={index === 0 ? "is-active" : ""}
-                type="button"
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </section>
 
       <section className="insight-grid">
         <aside className="panel trend-panel">
@@ -849,14 +793,29 @@ function App() {
         </section>
 
         <section className="panel chart-panel">
-          <div className="panel-heading">
-            <span>Detail View</span>
-            <h2>{selectedKeyword || "키워드"} 언급량 추이</h2>
+          <div className="panel-heading detail-heading">
+            <div>
+              <span>Detail View</span>
+              <h2>{selectedKeyword || "키워드"} 언급량 추이</h2>
+            </div>
+            <div className="time-filter" aria-label="기간 필터">
+              {FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  className={range === filter.value ? "is-active" : ""}
+                  type="button"
+                  onClick={() => setRange(filter.value)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
           </div>
+          <p className="trend-summary">{trendDeltaSummary}</p>
 
           <div className="chart-box">
             {trendHistory.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={trendHistory}
                   margin={{ top: 12, right: 10, bottom: 4, left: -24 }}
@@ -895,26 +854,49 @@ function App() {
             )}
           </div>
 
-          <div className="article-list">
+          <div
+            className={`article-list ${
+              articlesExpanded ? "is-expanded" : "is-collapsed"
+            }`}
+          >
             <div className="panel-heading compact">
               <span>Evidence</span>
               <h2>관련 기사</h2>
             </div>
             {articles.length > 0 ? (
-              articles.map((article) => (
-                <a
-                  key={article.url}
-                  className="article-link"
-                  href={article.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <strong>{article.title}</strong>
-                  <span>
-                    {article.source} · {article.publishedAt}
-                  </span>
-                </a>
-              ))
+              <>
+                <div className="article-list-wrapper">
+                  {visibleArticles.map((article) => (
+                  <a
+                    key={article.url}
+                    className="article-link"
+                    href={article.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <strong>{article.title}</strong>
+                    <span>
+                      {article.source} · {article.publishedAt}
+                    </span>
+                  </a>
+                ))}
+                  {!articlesExpanded && hiddenArticleCount > 0 && (
+                    <div className="article-fade" aria-hidden="true" />
+                  )}
+                </div>
+                {hiddenArticleCount > 0 && (
+                  <button
+                    className="article-expand-button"
+                    type="button"
+                    aria-label={
+                      articlesExpanded ? "관련 기사 접기" : "관련 기사 펼치기"
+                    }
+                    onClick={() => setArticlesExpanded((expanded) => !expanded)}
+                  >
+                    {articlesExpanded ? "⌃" : "⌄"}
+                  </button>
+                )}
+              </>
             ) : (
               <p className="empty-message">관련 기사 근거가 없습니다.</p>
             )}
