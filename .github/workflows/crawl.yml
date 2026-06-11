@@ -23,7 +23,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install crawler dependencies
-        run: pip install requests beautifulsoup4 pymongo python-dotenv feedparser
+        run: pip install requests beautifulsoup4 pymongo python-dotenv feedparser certifi
+
+      - name: Validate MongoDB secret
+        run: |
+          if [ -z "$MONGO_URI" ]; then
+            echo "::error title=Missing MONGO_URI secret::Add MONGO_URI in GitHub repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
 
       - name: Run crawler
         working-directory: crawler

@@ -4,12 +4,21 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
 import feedparser
+import certifi
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
 load_dotenv("../backend/.env")
 
-client = MongoClient(os.getenv("MONGO_URI"))
+mongo_uri = os.getenv("MONGO_URI")
+
+if not mongo_uri:
+    raise SystemExit(
+        "MONGO_URI 환경변수가 비어 있습니다. "
+        "GitHub Actions Secrets에 MONGO_URI를 등록해야 합니다."
+    )
+
+client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 db = client[os.getenv("MONGO_DB", "test")]
 
 RSS_FEEDS = {
