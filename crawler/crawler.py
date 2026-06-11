@@ -21,26 +21,95 @@ if not mongo_uri:
 client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 db = client[os.getenv("MONGO_DB", "test")]
 
-RSS_FEEDS = {
-    "yonhap": [
-        "https://www.yna.co.kr/rss/news.xml",
-    ],
-    "chosun": [
-        "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
-    ],
-    "mk": [
-        "https://www.mk.co.kr/rss/30000001/",
-        "https://www.mk.co.kr/rss/30100041/",
-    ],
-    "sbs": [
-        "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER",
-    ],
-    "etnews": [
-        "https://rss.etnews.com/Section902.xml",
-    ],
-    "jtbc": [
-        "https://fs.jtbc.co.kr/RSS/newsflash.xml",
-    ],
+CATEGORIES = {
+    "society": {
+        "label": "사회",
+        "feeds": {
+            "yonhap": [
+                "https://www.yna.co.kr/rss/news.xml",
+            ],
+            "sbs": [
+                "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER",
+            ],
+            "jtbc": [
+                "https://fs.jtbc.co.kr/RSS/newsflash.xml",
+            ],
+            "chosun": [
+                "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
+            ],
+        },
+    },
+    "politics": {
+        "label": "정치",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/NATION?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+        },
+    },
+    "economy": {
+        "label": "경제",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+            "mk": [
+                "https://www.mk.co.kr/rss/30000001/",
+                "https://www.mk.co.kr/rss/30100041/",
+            ],
+        },
+    },
+    "technology": {
+        "label": "IT",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+            "etnews": [
+                "https://rss.etnews.com/Section902.xml",
+            ],
+        },
+    },
+    "world": {
+        "label": "세계",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/WORLD?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+        },
+    },
+    "culture": {
+        "label": "문화",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+        },
+    },
+    "sports": {
+        "label": "스포츠",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+        },
+    },
+    "science": {
+        "label": "과학",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+        },
+    },
+    "health": {
+        "label": "건강",
+        "feeds": {
+            "google_news": [
+                "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ko&gl=KR&ceid=KR:ko",
+            ],
+        },
+    },
 }
 
 STOPWORDS = {
@@ -113,60 +182,69 @@ def get_entry_date(entry, fallback_date):
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
     start_date = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
-    counters_by_date = defaultdict(Counter)
+    counters_by_category_date = defaultdict(lambda: defaultdict(Counter))
     source_counts = defaultdict(int)
+    category_counts = defaultdict(int)
     seen_urls = set()
     article_count = 0
-    touched_dates = set()
+    touched_category_dates = set()
 
-    for source, rss_urls in RSS_FEEDS.items():
-        for rss_url in rss_urls:
-            feed = feedparser.parse(rss_url)
+    for category, category_config in CATEGORIES.items():
+        category_label = category_config["label"]
 
-            for entry in feed.entries:
-                title = entry.get("title", "")
-                link = entry.get("link", "")
+        for source, rss_urls in category_config["feeds"].items():
+            for rss_url in rss_urls:
+                feed = feedparser.parse(rss_url)
 
-                if not title or not link or link in seen_urls:
-                    continue
+                for entry in feed.entries:
+                    title = entry.get("title", "")
+                    link = entry.get("link", "")
 
-                seen_urls.add(link)
-                keywords = extract_keywords(title)
-                article_date = get_entry_date(entry, today)
+                    if not title or not link or link in seen_urls:
+                        continue
 
-                if article_date < start_date or article_date > today:
-                    continue
+                    seen_urls.add(link)
+                    keywords = extract_keywords(title)
+                    article_date = get_entry_date(entry, today)
 
-                counters_by_date[article_date].update(keywords)
-                touched_dates.add(article_date)
-                source_counts[source] += 1
-                article_count += 1
+                    if article_date < start_date or article_date > today:
+                        continue
 
-                db.articles.update_one(
-                    {"url": link},
-                    {
-                        "$set": {
-                            "title": title,
-                            "url": link,
-                            "source": source,
-                            "feedUrl": rss_url,
-                            "publishedAt": article_date,
-                            "keywords": keywords,
-                        }
-                    },
-                    upsert=True,
-                )
+                    counters_by_category_date[category][article_date].update(keywords)
+                    touched_category_dates.add((category, article_date))
+                    source_counts[source] += 1
+                    category_counts[category_label] += 1
+                    article_count += 1
 
-    for article_date in touched_dates:
-        db.trends.delete_many({"date": article_date})
+                    db.articles.update_one(
+                        {"url": link},
+                        {
+                            "$set": {
+                                "title": title,
+                                "url": link,
+                                "source": source,
+                                "feedUrl": rss_url,
+                                "category": category,
+                                "categoryLabel": category_label,
+                                "publishedAt": article_date,
+                                "keywords": keywords,
+                            }
+                        },
+                        upsert=True,
+                    )
 
-        for keyword, count in counters_by_date[article_date].most_common(100):
+    for category, article_date in touched_category_dates:
+        db.trends.delete_many({"date": article_date, "category": category})
+
+        for keyword, count in counters_by_category_date[category][article_date].most_common(100):
             db.trends.update_one(
-                {"keyword": keyword, "date": article_date},
+                {"keyword": keyword, "date": article_date, "category": category},
                 {
                     "$set": {
                         "keyword": keyword,
                         "date": article_date,
+                        "category": category,
+                        "categoryLabel": CATEGORIES[category]["label"],
                         "count": count,
                     }
                 },
@@ -179,10 +257,14 @@ def main():
     for source, count in sorted(source_counts.items()):
         print(source, count)
 
-    print("날짜별 수집 키워드 TOP 10:")
-    for article_date in sorted(touched_dates, reverse=True):
-        print(article_date)
-        for keyword, count in counters_by_date[article_date].most_common(10):
+    print("분야별 수집량:")
+    for category_label, count in sorted(category_counts.items()):
+        print(category_label, count)
+
+    print("분야/날짜별 수집 키워드 TOP 10:")
+    for category, article_date in sorted(touched_category_dates, key=lambda item: (item[1], item[0]), reverse=True):
+        print(article_date, CATEGORIES[category]["label"])
+        for keyword, count in counters_by_category_date[category][article_date].most_common(10):
             print(keyword, count)
 
 

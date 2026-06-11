@@ -4,13 +4,133 @@ const Trend = require("../models/Trend");
 
 const router = express.Router();
 
+const GALAXIES = [
+  {
+    id: "society",
+    name: "Society",
+    color: "#38bdf8",
+    accent: "#2dd4bf",
+    hue: 195,
+    description: "A dense urban galaxy where incidents and public systems converge.",
+    signalLabel: "Civic signals",
+    core: { x: 50, y: 46 },
+    x: 50,
+    y: 46,
+    scale: 1.12,
+  },
+  {
+    id: "politics",
+    name: "Politics",
+    color: "#f43f5e",
+    accent: "#f97316",
+    hue: 348,
+    description: "A charged red cluster where power, elections, and policy collide.",
+    signalLabel: "Policy signals",
+    core: { x: 35, y: 38 },
+    x: 24,
+    y: 32,
+    scale: 0.92,
+  },
+  {
+    id: "economy",
+    name: "Economy",
+    color: "#f59e0b",
+    accent: "#84cc16",
+    hue: 38,
+    description: "A bright trade galaxy shaped by markets, capital, and prices.",
+    signalLabel: "Market signals",
+    core: { x: 66, y: 36 },
+    x: 72,
+    y: 28,
+    scale: 1,
+  },
+  {
+    id: "technology",
+    name: "IT",
+    color: "#22c55e",
+    accent: "#06b6d4",
+    hue: 145,
+    description: "A green circuit galaxy linking AI, chips, platforms, and data.",
+    signalLabel: "Tech signals",
+    core: { x: 36, y: 64 },
+    x: 30,
+    y: 70,
+    scale: 0.96,
+  },
+  {
+    id: "world",
+    name: "World",
+    color: "#818cf8",
+    accent: "#38bdf8",
+    hue: 238,
+    description: "A distant galaxy where diplomacy, conflict, and global shifts ripple outward.",
+    signalLabel: "Global signals",
+    core: { x: 68, y: 64 },
+    x: 76,
+    y: 68,
+    scale: 0.9,
+  },
+  {
+    id: "culture",
+    name: "Culture",
+    color: "#ec4899",
+    accent: "#facc15",
+    hue: 326,
+    description: "A vivid nebula of content, performance, fandom, and public taste.",
+    signalLabel: "Culture signals",
+    core: { x: 26, y: 56 },
+    x: 14,
+    y: 54,
+    scale: 0.78,
+  },
+  {
+    id: "sports",
+    name: "Sports",
+    color: "#14b8a6",
+    accent: "#a3e635",
+    hue: 174,
+    description: "A fast-moving galaxy of games, records, rivalries, and fan energy.",
+    signalLabel: "Game signals",
+    core: { x: 80, y: 48 },
+    x: 88,
+    y: 46,
+    scale: 0.82,
+  },
+  {
+    id: "science",
+    name: "Science",
+    color: "#a855f7",
+    accent: "#22d3ee",
+    hue: 272,
+    description: "A deep exploration galaxy for research, space, climate, and discovery.",
+    signalLabel: "Research signals",
+    core: { x: 52, y: 72 },
+    x: 52,
+    y: 82,
+    scale: 0.78,
+  },
+  {
+    id: "health",
+    name: "Health",
+    color: "#06b6d4",
+    accent: "#fb7185",
+    hue: 188,
+    description: "A life-signal galaxy tracking medicine, disease, safety, and care.",
+    signalLabel: "Health signals",
+    core: { x: 50, y: 24 },
+    x: 50,
+    y: 16,
+    scale: 0.72,
+  },
+];
+
 const CLUSTERS = [
   {
-    name: "정치",
+    name: "Politics",
     keywords: ["대통령", "선거", "국회", "정부", "여당", "야당", "김정은", "시진핑"],
   },
   {
-    name: "경제",
+    name: "Economy",
     keywords: ["금리", "환율", "증시", "부동산", "투자", "경제", "시장", "물가"],
   },
   {
@@ -18,13 +138,25 @@ const CLUSTERS = [
     keywords: ["AI", "반도체", "엔비디아", "젠슨", "기술", "데이터", "플랫폼"],
   },
   {
-    name: "사회",
+    name: "Society",
     keywords: ["경찰", "검찰", "의혹", "사건", "수사", "재판", "사고"],
   },
 ];
 
-async function getLatestDate() {
-  const latestTrend = await Trend.findOne().sort({ date: -1 }).lean();
+function getCategory(req) {
+  const category = String(req.query.category || "").trim();
+
+  return category && category !== "all" ? category : null;
+}
+
+function withCategory(category, match = {}) {
+  return category ? { ...match, category } : match;
+}
+
+async function getLatestDate(category = null) {
+  const latestTrend = await Trend.findOne(withCategory(category))
+    .sort({ date: -1 })
+    .lean();
 
   return latestTrend?.date;
 }
@@ -41,12 +173,109 @@ function getStartDate(latestDate, days) {
   return date.toISOString().slice(0, 10);
 }
 
+router.get("/galaxies", async (req, res) => {
+  try {
+    const { days = "7" } = req.query;
+    const latestDate = await getLatestDate();
+    const startDate = getStartDate(latestDate, days);
+    const trendMatch = startDate ? { date: { $gte: startDate } } : {};
+    const articleMatch = startDate ? { publishedAt: { $gte: startDate } } : {};
+
+    const [trendSummaries, articleSummaries, topKeywords] = await Promise.all([
+      Trend.aggregate([
+        { $match: trendMatch },
+        {
+          $group: {
+            _id: "$category",
+            category: { $first: "$category" },
+            categoryLabel: { $first: "$categoryLabel" },
+            latestDate: { $max: "$date" },
+            totalMentions: { $sum: "$count" },
+            keywordCount: { $sum: 1 },
+          },
+        },
+      ]),
+      Article.aggregate([
+        { $match: articleMatch },
+        {
+          $group: {
+            _id: "$category",
+            articleCount: { $sum: 1 },
+          },
+        },
+      ]),
+      Trend.aggregate([
+        { $match: trendMatch },
+        {
+          $group: {
+            _id: {
+              category: "$category",
+              keyword: "$keyword",
+            },
+            category: { $first: "$category" },
+            keyword: { $first: "$keyword" },
+            count: { $sum: "$count" },
+          },
+        },
+        { $sort: { category: 1, count: -1, keyword: 1 } },
+        {
+          $group: {
+            _id: "$_id.category",
+            keyword: { $first: "$keyword" },
+            count: { $first: "$count" },
+          },
+        },
+      ]),
+    ]);
+
+    const trendsByCategory = new Map(
+      trendSummaries.map((summary) => [summary.category, summary])
+    );
+    const articlesByCategory = new Map(
+      articleSummaries.map((summary) => [summary._id, summary.articleCount])
+    );
+    const topKeywordByCategory = new Map(
+      topKeywords.map((summary) => [summary._id, summary])
+    );
+
+    const galaxies = GALAXIES.map((galaxy) => {
+      const trendSummary = trendsByCategory.get(galaxy.id);
+      const topKeyword = topKeywordByCategory.get(galaxy.id);
+
+      return {
+        ...galaxy,
+        latestDate: trendSummary?.latestDate || null,
+        totalMentions: trendSummary?.totalMentions || 0,
+        keywordCount: trendSummary?.keywordCount || 0,
+        articleCount: articlesByCategory.get(galaxy.id) || 0,
+        topKeyword: topKeyword?.keyword || null,
+        topKeywordCount: topKeyword?.count || 0,
+      };
+    });
+
+    res.json({
+      latestDate,
+      startDate,
+      galaxies,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to load galaxy list",
+      error: error.message,
+    });
+  }
+});
+
 router.get("/top", async (req, res) => {
   try {
     const { days = "all" } = req.query;
-    const latestDate = await getLatestDate();
+    const category = getCategory(req);
+    const latestDate = await getLatestDate(category);
     const startDate = getStartDate(latestDate, days);
-    const match = startDate ? { date: { $gte: startDate } } : {};
+    const match = withCategory(
+      category,
+      startDate ? { date: { $gte: startDate } } : {}
+    );
 
     const trends = await Trend.aggregate([
       { $match: match },
@@ -63,13 +292,14 @@ router.get("/top", async (req, res) => {
     ]);
 
     res.json({
+      category,
       latestDate,
       startDate,
       trends,
     });
   } catch (error) {
     res.status(500).json({
-      message: "인기 키워드 조회 실패",
+      message: "Failed to load top keywords",
       error: error.message,
     });
   }
@@ -78,16 +308,19 @@ router.get("/top", async (req, res) => {
 router.get("/articles/:keyword", async (req, res) => {
   try {
     const { keyword } = req.params;
-    const articles = await Article.find({ keywords: keyword })
+    const category = getCategory(req);
+    const articles = await Article.find(
+      withCategory(category, { keywords: keyword })
+    )
       .sort({ publishedAt: -1, updatedAt: -1 })
       .limit(8)
-      .select("title url source publishedAt keywords")
+      .select("title url source category categoryLabel publishedAt keywords")
       .lean();
 
     res.json(articles);
   } catch (error) {
     res.status(500).json({
-      message: "관련 기사 조회 실패",
+      message: "Failed to load related articles",
       error: error.message,
     });
   }
@@ -95,19 +328,30 @@ router.get("/articles/:keyword", async (req, res) => {
 
 router.get("/rising", async (req, res) => {
   try {
-    const latestDate = await getLatestDate();
-    const previousTrend = await Trend.findOne({ date: { $lt: latestDate } })
+    const category = getCategory(req);
+    const latestDate = await getLatestDate(category);
+
+    if (!latestDate) {
+      return res.json({
+        category,
+        latestDate: null,
+        previousDate: null,
+        rising: [],
+      });
+    }
+
+    const previousTrend = await Trend.findOne(
+      withCategory(category, { date: { $lt: latestDate } })
+    )
       .sort({ date: -1 })
       .lean();
     const previousDate = previousTrend?.date;
 
-    if (!latestDate) {
-      return res.json({ latestDate: null, previousDate: null, rising: [] });
-    }
-
     const [latestRows, previousRows] = await Promise.all([
-      Trend.find({ date: latestDate }).lean(),
-      previousDate ? Trend.find({ date: previousDate }).lean() : [],
+      Trend.find(withCategory(category, { date: latestDate })).lean(),
+      previousDate
+        ? Trend.find(withCategory(category, { date: previousDate })).lean()
+        : [],
     ]);
 
     const previousMap = new Map(
@@ -133,10 +377,10 @@ router.get("/rising", async (req, res) => {
       .sort((a, b) => b.delta - a.delta || b.count - a.count)
       .slice(0, 8);
 
-    res.json({ latestDate, previousDate, rising });
+    res.json({ category, latestDate, previousDate, rising });
   } catch (error) {
     res.status(500).json({
-      message: "급상승 키워드 조회 실패",
+      message: "Failed to load rising keywords",
       error: error.message,
     });
   }
@@ -144,8 +388,11 @@ router.get("/rising", async (req, res) => {
 
 router.get("/clusters", async (req, res) => {
   try {
-    const latestDate = await getLatestDate();
-    const trends = latestDate ? await Trend.find({ date: latestDate }).lean() : [];
+    const category = getCategory(req);
+    const latestDate = await getLatestDate(category);
+    const trends = latestDate
+      ? await Trend.find(withCategory(category, { date: latestDate })).lean()
+      : [];
 
     const clusters = CLUSTERS.map((cluster) => {
       const matched = trends
@@ -162,10 +409,10 @@ router.get("/clusters", async (req, res) => {
       };
     }).sort((a, b) => b.count - a.count);
 
-    res.json({ latestDate, clusters });
+    res.json({ category, latestDate, clusters });
   } catch (error) {
     res.status(500).json({
-      message: "키워드 클러스터 조회 실패",
+      message: "Failed to load keyword clusters",
       error: error.message,
     });
   }
@@ -174,8 +421,11 @@ router.get("/clusters", async (req, res) => {
 router.get("/related/:keyword", async (req, res) => {
   try {
     const { keyword } = req.params;
-    const articles = await Article.find({ keywords: keyword })
-      .select("title source keywords")
+    const category = getCategory(req);
+    const articles = await Article.find(
+      withCategory(category, { keywords: keyword })
+    )
+      .select("title source category categoryLabel keywords")
       .lean();
 
     const relatedCounts = new Map();
@@ -204,13 +454,14 @@ router.get("/related/:keyword", async (req, res) => {
       .slice(0, 8);
 
     res.json({
+      category,
       keyword,
       articleCount: articles.length,
       related,
     });
   } catch (error) {
     res.status(500).json({
-      message: "관련 키워드 조회 실패",
+      message: "Failed to load related keywords",
       error: error.message,
     });
   }
@@ -219,10 +470,17 @@ router.get("/related/:keyword", async (req, res) => {
 router.get("/network", async (req, res) => {
   try {
     const { days = "1" } = req.query;
-    const latestDate = await getLatestDate();
+    const category = getCategory(req);
+    const latestDate = await getLatestDate(category);
     const startDate = getStartDate(latestDate, days);
-    const articleMatch = startDate ? { publishedAt: { $gte: startDate } } : {};
-    const trendMatch = startDate ? { date: { $gte: startDate } } : {};
+    const articleMatch = withCategory(
+      category,
+      startDate ? { publishedAt: { $gte: startDate } } : {}
+    );
+    const trendMatch = withCategory(
+      category,
+      startDate ? { date: { $gte: startDate } } : {}
+    );
 
     const [articles, trendRows] = await Promise.all([
       Article.find(articleMatch).select("keywords").lean(),
@@ -275,6 +533,7 @@ router.get("/network", async (req, res) => {
       .slice(0, 220);
 
     res.json({
+      category,
       latestDate,
       startDate,
       nodes,
@@ -282,7 +541,7 @@ router.get("/network", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      message: "전체 키워드 네트워크 조회 실패",
+      message: "Failed to load keyword network",
       error: error.message,
     });
   }
@@ -291,13 +550,16 @@ router.get("/network", async (req, res) => {
 router.get("/:keyword", async (req, res) => {
   try {
     const { keyword } = req.params;
+    const category = getCategory(req);
 
-    const data = await Trend.find({ keyword }).sort({ date: 1 });
+    const data = await Trend.find(withCategory(category, { keyword })).sort({
+      date: 1,
+    });
 
     res.json(data);
   } catch (error) {
     res.status(500).json({
-      message: "키워드 트렌드 조회 실패",
+      message: "Failed to load keyword trend",
       error: error.message,
     });
   }

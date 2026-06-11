@@ -15,6 +15,21 @@ const articleSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    feedUrl: {
+      type: String,
+      default: "",
+    },
+    category: {
+      type: String,
+      required: true,
+      default: "society",
+      index: true,
+    },
+    categoryLabel: {
+      type: String,
+      required: true,
+      default: "Society",
+    },
     publishedAt: {
       type: String,
       required: true,
@@ -28,5 +43,8 @@ const articleSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+articleSchema.index({ category: 1, publishedAt: -1 });
+articleSchema.index({ category: 1, keywords: 1, publishedAt: -1 });
 
 module.exports = mongoose.model("Article", articleSchema);

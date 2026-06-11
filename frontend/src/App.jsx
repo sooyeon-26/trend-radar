@@ -13,10 +13,208 @@ import "./App.css";
 
 const API_BASE_URL = "http://localhost:4000/api/trends";
 const FILTERS = [
-  { label: "오늘", value: "1" },
-  { label: "3일", value: "3" },
-  { label: "7일", value: "7" },
+  { label: "Today", value: "1" },
+  { label: "3D", value: "3" },
+  { label: "7D", value: "7" },
 ];
+const DEFAULT_CATEGORY = "society";
+const GALAXY_FALLBACKS = {
+  society: {
+    name: "Society",
+    color: "#38bdf8",
+    accent: "#2dd4bf",
+    hue: 195,
+    description: "A dense urban galaxy where incidents and public systems converge.",
+    signalLabel: "Civic signals",
+    core: { x: 50, y: 46 },
+  },
+  politics: {
+    name: "Politics",
+    color: "#f43f5e",
+    accent: "#f97316",
+    hue: 348,
+    description: "A charged red cluster where power, elections, and policy collide.",
+    signalLabel: "Policy signals",
+    core: { x: 35, y: 38 },
+  },
+  economy: {
+    name: "Economy",
+    color: "#f59e0b",
+    accent: "#84cc16",
+    hue: 38,
+    description: "A bright trade galaxy shaped by markets, capital, and prices.",
+    signalLabel: "Market signals",
+    core: { x: 66, y: 36 },
+  },
+  technology: {
+    name: "IT",
+    color: "#22c55e",
+    accent: "#06b6d4",
+    hue: 145,
+    description: "A green circuit galaxy linking AI, chips, platforms, and data.",
+    signalLabel: "Tech signals",
+    core: { x: 36, y: 64 },
+  },
+  world: {
+    name: "World",
+    color: "#818cf8",
+    accent: "#38bdf8",
+    hue: 238,
+    description: "A distant galaxy where diplomacy, conflict, and global shifts ripple outward.",
+    signalLabel: "Global signals",
+    core: { x: 68, y: 64 },
+  },
+  culture: {
+    name: "Culture",
+    color: "#ec4899",
+    accent: "#facc15",
+    hue: 326,
+    description: "A vivid nebula of content, performance, fandom, and public taste.",
+    signalLabel: "Culture signals",
+    core: { x: 26, y: 56 },
+  },
+  sports: {
+    name: "Sports",
+    color: "#14b8a6",
+    accent: "#a3e635",
+    hue: 174,
+    description: "A fast-moving galaxy of games, records, rivalries, and fan energy.",
+    signalLabel: "Game signals",
+    core: { x: 80, y: 48 },
+  },
+  science: {
+    name: "Science",
+    color: "#a855f7",
+    accent: "#22d3ee",
+    hue: 272,
+    description: "A deep exploration galaxy for research, space, climate, and discovery.",
+    signalLabel: "Research signals",
+    core: { x: 52, y: 72 },
+  },
+  health: {
+    name: "Health",
+    color: "#06b6d4",
+    accent: "#fb7185",
+    hue: 188,
+    description: "A life-signal galaxy tracking medicine, disease, safety, and care.",
+    signalLabel: "Health signals",
+    core: { x: 50, y: 24 },
+  },
+};
+
+function hexToRgba(hex, alpha) {
+  const normalizedHex = hex.replace("#", "");
+  const value = Number.parseInt(normalizedHex, 16);
+
+  if (Number.isNaN(value)) {
+    return `rgba(56, 189, 248, ${alpha})`;
+  }
+
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+const CHO_ROMAN = [
+  "g",
+  "kk",
+  "n",
+  "d",
+  "tt",
+  "r",
+  "m",
+  "b",
+  "pp",
+  "s",
+  "ss",
+  "",
+  "j",
+  "jj",
+  "ch",
+  "k",
+  "t",
+  "p",
+  "h",
+];
+const JUNG_ROMAN = [
+  "a",
+  "ae",
+  "ya",
+  "yae",
+  "eo",
+  "e",
+  "yeo",
+  "ye",
+  "o",
+  "wa",
+  "wae",
+  "oe",
+  "yo",
+  "u",
+  "wo",
+  "we",
+  "wi",
+  "yu",
+  "eu",
+  "ui",
+  "i",
+];
+const JONG_ROMAN = [
+  "",
+  "k",
+  "k",
+  "ks",
+  "n",
+  "nj",
+  "nh",
+  "t",
+  "l",
+  "lk",
+  "lm",
+  "lb",
+  "ls",
+  "lt",
+  "lp",
+  "lh",
+  "m",
+  "p",
+  "ps",
+  "t",
+  "t",
+  "ng",
+  "t",
+  "t",
+  "k",
+  "t",
+  "p",
+  "t",
+];
+
+function romanizeHangul(text) {
+  return String(text)
+    .split("")
+    .map((character) => {
+      const code = character.charCodeAt(0);
+
+      if (code < 0xac00 || code > 0xd7a3) {
+        return character;
+      }
+
+      const offset = code - 0xac00;
+      const cho = Math.floor(offset / 588);
+      const jung = Math.floor((offset % 588) / 28);
+      const jong = offset % 28;
+
+      return `${CHO_ROMAN[cho]}${JUNG_ROMAN[jung]}${JONG_ROMAN[jong]}`;
+    })
+    .join("");
+}
+
+function formatDisplayText(value) {
+  return romanizeHangul(value || "");
+}
 
 const NODE_LAYOUTS = [
   { x: 64, y: 26 },
@@ -95,6 +293,8 @@ const DENSITY_DOTS = Array.from({ length: 820 }, (_, index) => {
 });
 
 function App() {
+  const [galaxies, setGalaxies] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(DEFAULT_CATEGORY);
   const [trends, setTrends] = useState([]);
   const [keyword, setKeyword] = useState("");
   const [selectedKeyword, setSelectedKeyword] = useState("");
@@ -108,11 +308,12 @@ function App() {
   const [latestDate, setLatestDate] = useState("-");
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
   const [graphZoom, setGraphZoom] = useState(1);
+  const [viewMode, setViewMode] = useState("inside");
   const [articlesExpanded, setArticlesExpanded] = useState(false);
 
   useEffect(() => {
-    fetchDashboard(range);
-  }, [range]);
+    fetchDashboard(range, selectedCategory);
+  }, [range, selectedCategory]);
 
   useEffect(() => {
     const handleMouseMove = (event) => {
@@ -129,15 +330,22 @@ function App() {
     };
   }, []);
 
-  const fetchDashboard = (selectedRange) => {
+  const getCategoryQuery = (category) =>
+    `category=${encodeURIComponent(category || DEFAULT_CATEGORY)}`;
+
+  const fetchDashboard = (selectedRange, category) => {
+    const categoryQuery = getCategoryQuery(category);
+
     Promise.all([
-      axios.get(`${API_BASE_URL}/top?days=${selectedRange}`),
-      axios.get(`${API_BASE_URL}/clusters`),
-      axios.get(`${API_BASE_URL}/network?days=${selectedRange}`),
+      axios.get(`${API_BASE_URL}/galaxies?days=${selectedRange}`),
+      axios.get(`${API_BASE_URL}/top?days=${selectedRange}&${categoryQuery}`),
+      axios.get(`${API_BASE_URL}/clusters?${categoryQuery}`),
+      axios.get(`${API_BASE_URL}/network?days=${selectedRange}&${categoryQuery}`),
     ])
-      .then(([topResponse, clusterResponse, networkResponse]) => {
+      .then(([galaxyResponse, topResponse, clusterResponse, networkResponse]) => {
         const topTrends = topResponse.data.trends || [];
 
+        setGalaxies(galaxyResponse.data.galaxies || []);
         setTrends(topTrends);
         setLatestDate(topResponse.data.latestDate || "-");
         setClusters(clusterResponse.data.clusters || []);
@@ -152,15 +360,23 @@ function App() {
               ?.keyword || topTrends[0].keyword;
 
           setKeyword(nextKeyword);
-          selectKeyword(nextKeyword);
+          selectKeyword(nextKeyword, category);
+          return;
         }
+
+        setKeyword("");
+        setSelectedKeyword("");
+        setTrendHistory([]);
+        setRelatedKeywords([]);
+        setRelatedArticleCount(0);
+        setArticles([]);
       })
       .catch((error) => {
-        console.error("대시보드 데이터 조회 실패:", error);
+        console.error("Failed to load dashboard data:", error);
       });
   };
 
-  const selectKeyword = (searchKeyword) => {
+  const selectKeyword = (searchKeyword, category = selectedCategory) => {
     const trimmedKeyword = searchKeyword.trim();
 
     if (!trimmedKeyword) {
@@ -168,14 +384,15 @@ function App() {
     }
 
     const encodedKeyword = encodeURIComponent(trimmedKeyword);
+    const categoryQuery = getCategoryQuery(category);
 
     setSelectedKeyword(trimmedKeyword);
     setArticlesExpanded(false);
 
     Promise.all([
-      axios.get(`${API_BASE_URL}/${encodedKeyword}`),
-      axios.get(`${API_BASE_URL}/related/${encodedKeyword}`),
-      axios.get(`${API_BASE_URL}/articles/${encodedKeyword}`),
+      axios.get(`${API_BASE_URL}/${encodedKeyword}?${categoryQuery}`),
+      axios.get(`${API_BASE_URL}/related/${encodedKeyword}?${categoryQuery}`),
+      axios.get(`${API_BASE_URL}/articles/${encodedKeyword}?${categoryQuery}`),
     ])
       .then(([trendResponse, relatedResponse, articleResponse]) => {
         setTrendHistory(trendResponse.data);
@@ -184,13 +401,32 @@ function App() {
         setArticles(articleResponse.data || []);
       })
       .catch((error) => {
-        console.error("키워드 데이터 조회 실패:", error);
+        console.error("Failed to load keyword data:", error);
       });
   };
 
   const selectedMentions = trendHistory.reduce(
     (sum, trend) => sum + trend.count,
     0
+  );
+  const themedGalaxies = useMemo(
+    () =>
+      galaxies.map((galaxy) => ({
+        ...(GALAXY_FALLBACKS[galaxy.id] || {}),
+        ...galaxy,
+        core:
+          galaxy.core ||
+          GALAXY_FALLBACKS[galaxy.id]?.core || { x: 50, y: 46 },
+      })),
+    [galaxies]
+  );
+  const selectedGalaxy = useMemo(
+    () =>
+      themedGalaxies.find((galaxy) => galaxy.id === selectedCategory) || {
+        id: selectedCategory,
+        ...GALAXY_FALLBACKS[selectedCategory],
+      },
+    [themedGalaxies, selectedCategory]
   );
   const topKeyword = trends[0];
   const maxTrendCount = Math.max(...trends.map((item) => item.count), 1);
@@ -214,17 +450,17 @@ function App() {
   );
   const trendDeltaSummary = useMemo(() => {
     if (trendHistory.length < 2) {
-      return "변화 데이터 대기";
+      return "Waiting for trend movement";
     }
 
     const recentHistory = trendHistory.slice(-3);
     const firstCount = recentHistory[0]?.count || 0;
     const lastCount = recentHistory[recentHistory.length - 1]?.count || 0;
     const delta = lastCount - firstCount;
-    const direction = delta > 0 ? "증가" : delta < 0 ? "감소" : "변동 없음";
+    const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
     const signedDelta = delta > 0 ? `+${delta}` : `${delta}`;
 
-    return `최근 ${recentHistory.length}일 ${signedDelta}건 ${direction}`;
+    return `${signedDelta} mentions ${direction} over ${recentHistory.length} days`;
   }, [trendHistory]);
   const relationNodes = useMemo(
     () =>
@@ -245,6 +481,7 @@ function App() {
   );
   const densityNodes = useMemo(() => {
     const nodesByKeyword = new Map();
+    const baseHue = selectedGalaxy?.hue || 195;
 
     const addNode = (item, nextNode) => {
       const key = item.keyword;
@@ -286,9 +523,9 @@ function App() {
         size: index < 10 ? 8 + strength * 26 : 3.5 + strength * 14,
         alpha: index < 10 ? 0.56 + strength * 0.4 : 0.24 + strength * 0.46,
         strength,
-        cluster: index < 10 ? "Top 10" : "전체 네트워크",
+        cluster: index < 10 ? "Top 10" : "Full network",
         clusterIndex: 5,
-        hue: index < 10 ? 205 : 198,
+        hue: index < 10 ? baseHue : baseHue + 8,
         source: index < 10 ? "top" : "network",
         priority: index < 10 ? 4 : 2,
         count: item.count,
@@ -311,7 +548,7 @@ function App() {
           strength,
           cluster: cluster.name,
           clusterIndex,
-          hue: center.hue,
+          hue: baseHue + (clusterIndex - 2) * 9,
           source: "cluster",
           priority: 1,
           count: item.count,
@@ -331,7 +568,7 @@ function App() {
         strength,
         cluster: "Top 10",
         clusterIndex: 5,
-        hue: 205,
+        hue: baseHue,
         source: "top",
         priority: 4,
         count: item.count,
@@ -349,9 +586,9 @@ function App() {
         size: 3.5 + strength * 13,
         alpha: 0.22 + strength * 0.42,
         strength,
-        cluster: "인기 키워드",
+        cluster: "Trending keywords",
         clusterIndex: 5,
-        hue: 200,
+        hue: baseHue + 10,
         source: "trend",
         priority: 2,
         count: item.count,
@@ -369,9 +606,9 @@ function App() {
         size: 5 + strength * 18,
         alpha: 0.45 + strength * 0.5,
         strength,
-        cluster: selectedKeyword || "선택 키워드",
+        cluster: selectedKeyword || "Selected keyword",
         clusterIndex: 6,
-        hue: 170,
+        hue: baseHue - 24,
         source: "related",
         priority: 3,
         count: item.count,
@@ -389,9 +626,9 @@ function App() {
           size: 22,
           alpha: 0.96,
           strength: 1,
-          cluster: "선택 키워드",
+          cluster: "Selected keyword",
           clusterIndex: 6,
-          hue: 170,
+          hue: baseHue - 24,
           source: "selected",
           priority: 5,
           count: selectedMentions || topKeyword?.count || 1,
@@ -412,6 +649,7 @@ function App() {
     selectedKeyword,
     selectedMentions,
     topKeyword,
+    selectedGalaxy,
   ]);
 
   const densityLinks = useMemo(() => {
@@ -482,6 +720,24 @@ function App() {
     selectKeyword(keyword);
   };
 
+  const selectGalaxy = (galaxyId) => {
+    if (galaxyId === selectedCategory) {
+      setViewMode("inside");
+      setGraphZoom(1);
+      return;
+    }
+
+    setSelectedCategory(galaxyId);
+    setGraphZoom(1);
+    setViewMode("inside");
+    setArticlesExpanded(false);
+  };
+
+  const showUniverse = () => {
+    setViewMode("universe");
+    setGraphZoom(0.52);
+  };
+
   const handleGraphWheel = (event) => {
     if (event.target.closest(".article-list, .trend-list")) {
       return;
@@ -489,28 +745,51 @@ function App() {
 
     event.preventDefault();
 
+    if (viewMode === "universe") {
+      if (event.deltaY < 0) {
+        setViewMode("inside");
+        setGraphZoom(0.78);
+      }
+
+      return;
+    }
+
     setGraphZoom((currentZoom) => {
       const nextZoom =
-        currentZoom + (event.deltaY > 0 ? -0.08 : 0.08);
+        currentZoom + (event.deltaY > 0 ? -0.1 : 0.08);
+      const clampedZoom = Math.min(2.2, Math.max(0.5, Number(nextZoom.toFixed(2))));
 
-      return Math.min(2.2, Math.max(0.58, Number(nextZoom.toFixed(2))));
+      if (clampedZoom <= 0.62 && event.deltaY > 0) {
+        setViewMode("universe");
+      }
+
+      return clampedZoom;
     });
   };
 
   return (
     <main
-      className="app"
+      className={`app app-${viewMode}`}
       style={{
         "--mouse-x": `${mousePosition.x}%`,
         "--mouse-y": `${mousePosition.y}%`,
         "--graph-zoom": graphZoom,
         "--focus-x": `${selectedGraphNode?.x || 48}%`,
         "--focus-y": `${selectedGraphNode?.y || 52}%`,
+        "--galaxy-color": selectedGalaxy?.color || "#38bdf8",
+        "--galaxy-accent": selectedGalaxy?.accent || "#2dd4bf",
+        "--galaxy-glow": hexToRgba(selectedGalaxy?.color || "#38bdf8", 0.22),
+        "--galaxy-accent-glow": hexToRgba(
+          selectedGalaxy?.accent || "#2dd4bf",
+          0.16
+        ),
+        "--galaxy-core-x": `${selectedGalaxy?.core?.x || 50}%`,
+        "--galaxy-core-y": `${selectedGalaxy?.core?.y || 46}%`,
       }}
     >
       <section
-        className="density-hero"
-        aria-label="키워드 밀도 지도"
+        className={`density-hero density-hero-${viewMode}`}
+        aria-label="Keyword density map"
         onWheel={handleGraphWheel}
       >
         <div className="graph-stage">
@@ -577,7 +856,7 @@ function App() {
                   isSelected ? "is-selected" : isRelated ? "is-related" : "is-muted"
                 }`}
                 type="button"
-                title={`${node.keyword} · ${node.count}건 · ${node.cluster}`}
+                title={`${formatDisplayText(node.keyword)} · ${node.count} mentions · ${node.cluster}`}
                 style={{
                   left: `${node.x}%`,
                   top: `${node.y}%`,
@@ -591,33 +870,120 @@ function App() {
                   selectKeyword(node.keyword);
                 }}
               >
-                <span>{node.keyword}</span>
+                <span>{formatDisplayText(node.keyword)}</span>
               </button>
             );
           })}
         </div>
 
+        <div className="universe-stage" aria-hidden={viewMode !== "universe"}>
+          <div className="universe-orbits" />
+          {themedGalaxies.map((galaxy) => {
+            const isSelectedGalaxy = selectedCategory === galaxy.id;
+            const mentionScale = Math.min(
+              1.4,
+              0.74 + Math.sqrt(galaxy.totalMentions || 1) / 28
+            );
+
+            return (
+              <button
+                key={galaxy.id}
+                className={`galaxy-node ${
+                  isSelectedGalaxy ? "is-selected" : ""
+                }`}
+                type="button"
+                title={`${galaxy.name} · ${galaxy.articleCount} articles · Top keyword ${formatDisplayText(galaxy.topKeyword || "Pending")}`}
+                style={{
+                  left: `${galaxy.x}%`,
+                  top: `${galaxy.y}%`,
+                  width: `${86 * galaxy.scale * mentionScale}px`,
+                  height: `${86 * galaxy.scale * mentionScale}px`,
+                  "--galaxy-node-color": galaxy.color,
+                }}
+                onClick={() => selectGalaxy(galaxy.id)}
+              >
+                <span>{galaxy.name}</span>
+                <strong>{formatDisplayText(galaxy.topKeyword || "-")}</strong>
+                <small>{galaxy.articleCount} articles</small>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          className="universe-toggle"
+          type="button"
+          onClick={viewMode === "universe" ? () => {
+            setViewMode("inside");
+            setGraphZoom(1);
+          } : showUniverse}
+        >
+          {viewMode === "universe" ? "Enter Galaxy" : "All Galaxies"}
+        </button>
+
         <header className="app-header">
+          <div>
+            <p className="eyebrow">Current Galaxy</p>
+            <h1>{selectedGalaxy?.name || "Society"} Galaxy</h1>
+            <p className="subtitle">
+              {selectedGalaxy?.description || "Waiting for signals in this field."}
+            </p>
+            <div className="galaxy-brief" aria-label="Selected galaxy summary">
+              <span>
+                <strong>{formatDisplayText(selectedGalaxy?.topKeyword || "-")}</strong>
+                Top keyword
+              </span>
+              <span>
+                <strong>{selectedGalaxy?.totalMentions || 0}</strong>
+                {selectedGalaxy?.signalLabel || "Signals"}
+              </span>
+              <span>
+                <strong>{selectedGalaxy?.keywordCount || 0}</strong>
+                Observed keywords
+              </span>
+            </div>
+          </div>
           <div className="header-actions">
             <form className="search-form" onSubmit={handleSearch}>
-              <label htmlFor="keyword-search">검색</label>
+              <label htmlFor="keyword-search">Search</label>
               <input
                 id="keyword-search"
                 type="text"
-                value={keyword}
+                value={formatDisplayText(keyword)}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="키워드 검색"
+                placeholder="Search keyword"
               />
-              <button type="submit" aria-label="키워드 분석">⌕</button>
+              <button type="submit" aria-label="Analyze keyword">⌕</button>
             </form>
           </div>
         </header>
+
+        <section className="control-strip" aria-label="Choose news galaxy">
+          <div className="galaxy-switcher">
+            {themedGalaxies.map((galaxy) => (
+              <button
+                key={galaxy.id}
+                className={selectedCategory === galaxy.id ? "is-active" : ""}
+                type="button"
+                style={{ "--galaxy-option-color": galaxy.color }}
+                onClick={() => selectGalaxy(galaxy.id)}
+              >
+                <i />
+                <span>{galaxy.name}</span>
+                <strong>{galaxy.articleCount}</strong>
+              </button>
+            ))}
+          </div>
+          <p className="refresh-note">
+            {latestDate === "-" ? "Waiting for data" : `Updated ${latestDate}`}
+          </p>
+        </section>
 
       <section className="insight-grid">
         <aside className="panel trend-panel">
           <div className="panel-heading">
             <span>Source Nodes</span>
-            <h2>인기 키워드</h2>
+            <h2>{selectedGalaxy?.name || "Society"} Keywords</h2>
           </div>
 
           <div className="trend-list">
@@ -635,10 +1001,10 @@ function App() {
               >
                 <span className="rank">{index + 1}</span>
                 <span className="node-copy">
-                  <strong>{trend.keyword}</strong>
+                  <strong>{formatDisplayText(trend.keyword)}</strong>
                   <small>{trend.date}</small>
                 </span>
-                <span className="count-badge">{trend.count}건</span>
+                <span className="count-badge">{trend.count}</span>
               </button>
             ))}
           </div>
@@ -648,11 +1014,11 @@ function App() {
           <div className="map-toolbar">
             <div>
               <span>Relationship Map</span>
-              <strong>{selectedKeyword || "키워드 선택"}</strong>
+              <strong>{formatDisplayText(selectedKeyword) || "Select keyword"}</strong>
             </div>
-            <div className="map-legend" aria-label="관계망 범례">
-              <span><i className="legend-line" /> 공동 등장</span>
-              <span><i className="legend-node" /> 연관 키워드</span>
+            <div className="map-legend" aria-label="Network legend">
+              <span><i className="legend-line" /> Co-occurrence</span>
+              <span><i className="legend-node" /> Related keyword</span>
             </div>
           </div>
 
@@ -712,9 +1078,9 @@ function App() {
           <button
             className="focus-dot"
             type="button"
-            title={`${selectedKeyword || "키워드 선택"} · ${selectedMentions}건 언급`}
+            title={`${formatDisplayText(selectedKeyword) || "Select keyword"} · ${selectedMentions} mentions`}
           >
-            <span>{selectedKeyword || "키워드 선택"}</span>
+            <span>{formatDisplayText(selectedKeyword) || "Select keyword"}</span>
             <strong>{selectedMentions}</strong>
           </button>
 
@@ -724,7 +1090,7 @@ function App() {
                 key={relatedKeyword.keyword}
                 className="related-node"
                 type="button"
-                title={`${relatedKeyword.keyword} · ${relatedKeyword.count}회 공동 등장`}
+                title={`${formatDisplayText(relatedKeyword.keyword)} · ${relatedKeyword.count} co-occurrences`}
                 style={{
                   left: `${relatedKeyword.x}%`,
                   top: `${relatedKeyword.y}%`,
@@ -737,23 +1103,23 @@ function App() {
                   selectKeyword(relatedKeyword.keyword);
                 }}
               >
-                <span>{relatedKeyword.keyword}</span>
+                <span>{formatDisplayText(relatedKeyword.keyword)}</span>
                 <strong>{relatedKeyword.count}</strong>
               </button>
             ))
           ) : (
             <p className="network-empty">
-              같은 기사에서 함께 등장한 키워드가 아직 없습니다.
+              No keywords have appeared together in the same article yet.
             </p>
           )}
 
           <article className="relation-summary">
             <span>Strongest Link</span>
-            <strong>{strongestRelation?.keyword || "-"}</strong>
+            <strong>{formatDisplayText(strongestRelation?.keyword || "-")}</strong>
             <small>
               {strongestRelation
-                ? `${strongestRelation.count}회 공동 등장`
-                : "관계 없음"}
+                ? `${strongestRelation.count} co-occurrences`
+                : "No relationship"}
             </small>
           </article>
 
@@ -773,7 +1139,7 @@ function App() {
                       selectKeyword(item.keyword);
                     }}
                   >
-                    <span>{item.keyword}</span>
+                    <span>{formatDisplayText(item.keyword)}</span>
                     <i
                       style={{
                         width: `${Math.max(
@@ -786,7 +1152,7 @@ function App() {
                   </button>
                 ))
               ) : (
-                <small>연관 강도 데이터 없음</small>
+                <small>No relationship strength data</small>
               )}
             </div>
           </aside>
@@ -796,9 +1162,9 @@ function App() {
           <div className="panel-heading detail-heading">
             <div>
               <span>Detail View</span>
-              <h2>{selectedKeyword || "키워드"} 언급량 추이</h2>
+              <h2>{formatDisplayText(selectedKeyword) || "Keyword"} Mention Trend</h2>
             </div>
-            <div className="time-filter" aria-label="기간 필터">
+            <div className="time-filter" aria-label="Time range filter">
               {FILTERS.map((filter) => (
                 <button
                   key={filter.value}
@@ -840,7 +1206,7 @@ function App() {
                   <Line
                     type="monotone"
                     dataKey="count"
-                    stroke="#7dd3fc"
+                    stroke={selectedGalaxy?.accent || "#7dd3fc"}
                     strokeWidth={2}
                     dot={{ r: 3, fill: "#f8fafc", strokeWidth: 2 }}
                     activeDot={{ r: 5 }}
@@ -849,7 +1215,7 @@ function App() {
               </ResponsiveContainer>
             ) : (
               <p className="empty-message">
-                선택한 키워드의 세부 데이터가 없습니다.
+                No detail data for the selected keyword.
               </p>
             )}
           </div>
@@ -861,7 +1227,7 @@ function App() {
           >
             <div className="panel-heading compact">
               <span>Evidence</span>
-              <h2>관련 기사</h2>
+              <h2>Related Articles</h2>
             </div>
             {articles.length > 0 ? (
               <>
@@ -874,7 +1240,7 @@ function App() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <strong>{article.title}</strong>
+                    <strong>{formatDisplayText(article.title)}</strong>
                     <span>
                       {article.source} · {article.publishedAt}
                     </span>
@@ -889,7 +1255,7 @@ function App() {
                     className="article-expand-button"
                     type="button"
                     aria-label={
-                      articlesExpanded ? "관련 기사 접기" : "관련 기사 펼치기"
+                      articlesExpanded ? "Collapse related articles" : "Expand related articles"
                     }
                     onClick={() => setArticlesExpanded((expanded) => !expanded)}
                   >
@@ -898,7 +1264,7 @@ function App() {
                 )}
               </>
             ) : (
-              <p className="empty-message">관련 기사 근거가 없습니다.</p>
+              <p className="empty-message">No related article evidence.</p>
             )}
           </div>
         </section>
