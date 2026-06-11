@@ -150,7 +150,25 @@ function getCategory(req) {
 }
 
 function withCategory(category, match = {}) {
-  return category ? { ...match, category } : match;
+  if (!category) {
+    return match;
+  }
+
+  const categoryMatch =
+    category === "society"
+      ? {
+          $or: [
+            { category: "society" },
+            { category: { $exists: false } },
+            { category: null },
+            { category: "" },
+          ],
+        }
+      : { category };
+
+  return Object.keys(match).length > 0
+    ? { $and: [match, categoryMatch] }
+    : categoryMatch;
 }
 
 async function getLatestDate(category = null) {
@@ -185,10 +203,18 @@ router.get("/galaxies", async (req, res) => {
       Trend.aggregate([
         { $match: trendMatch },
         {
+          $addFields: {
+            normalizedCategory: { $ifNull: ["$category", "society"] },
+            normalizedCategoryLabel: {
+              $ifNull: ["$categoryLabel", "Society"],
+            },
+          },
+        },
+        {
           $group: {
-            _id: "$category",
-            category: { $first: "$category" },
-            categoryLabel: { $first: "$categoryLabel" },
+            _id: "$normalizedCategory",
+            category: { $first: "$normalizedCategory" },
+            categoryLabel: { $first: "$normalizedCategoryLabel" },
             latestDate: { $max: "$date" },
             totalMentions: { $sum: "$count" },
             keywordCount: { $sum: 1 },
@@ -198,8 +224,13 @@ router.get("/galaxies", async (req, res) => {
       Article.aggregate([
         { $match: articleMatch },
         {
+          $addFields: {
+            normalizedCategory: { $ifNull: ["$category", "society"] },
+          },
+        },
+        {
           $group: {
-            _id: "$category",
+            _id: "$normalizedCategory",
             articleCount: { $sum: 1 },
           },
         },
@@ -207,12 +238,17 @@ router.get("/galaxies", async (req, res) => {
       Trend.aggregate([
         { $match: trendMatch },
         {
+          $addFields: {
+            normalizedCategory: { $ifNull: ["$category", "society"] },
+          },
+        },
+        {
           $group: {
             _id: {
-              category: "$category",
+              category: "$normalizedCategory",
               keyword: "$keyword",
             },
-            category: { $first: "$category" },
+            category: { $first: "$normalizedCategory" },
             keyword: { $first: "$keyword" },
             count: { $sum: "$count" },
           },
