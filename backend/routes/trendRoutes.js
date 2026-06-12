@@ -143,6 +143,21 @@ const CLUSTERS = [
   },
 ];
 
+const CATEGORY_CONNECTIONS = [
+  ["society", "politics", 10],
+  ["society", "economy", 8],
+  ["society", "health", 8],
+  ["politics", "world", 9],
+  ["economy", "technology", 9],
+  ["economy", "world", 7],
+  ["technology", "science", 9],
+  ["science", "health", 7],
+  ["culture", "sports", 8],
+  ["culture", "technology", 5],
+  ["sports", "world", 4],
+  ["health", "politics", 4],
+];
+
 function getCategory(req) {
   const category = String(req.query.category || "").trim();
 
@@ -190,6 +205,253 @@ function getStartDate(latestDate, days) {
 
   return date.toISOString().slice(0, 10);
 }
+
+router.get("/universe", async (req, res) => {
+  try {
+    const { days = "7" } = req.query;
+    const latestDate = await getLatestDate();
+    const startDate = getStartDate(latestDate, days);
+    const trendMatch = startDate ? { date: { $gte: startDate } } : {};
+    const articleMatch = startDate ? { publishedAt: { $gte: startDate } } : {};
+
+    const [trendRows, articleSummaries, articles] = await Promise.all([
+      Trend.aggregate([
+        { $match: trendMatch },
+        {
+          $addFields: {
+            normalizedCategory: { $ifNull: ["$category", "society"] },
+            normalizedCategoryLabel: {
+              $ifNull: ["$categoryLabel", "Society"],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              category: "$normalizedCategory",
+              keyword: "$keyword",
+            },
+            category: { $first: "$normalizedCategory" },
+            categoryLabel: { $first: "$normalizedCategoryLabel" },
+            keyword: { $first: "$keyword" },
+            count: { $sum: "$count" },
+            latestDate: { $max: "$date" },
+          },
+        },
+        { $sort: { count: -1, keyword: 1 } },
+      ]),
+      Article.aggregate([
+        { $match: articleMatch },
+        {
+          $addFields: {
+            normalizedCategory: { $ifNull: ["$category", "society"] },
+          },
+        },
+        {
+          $group: {
+            _id: "$normalizedCategory",
+            articleCount: { $sum: 1 },
+          },
+        },
+      ]),
+      Article.find(articleMatch).select("category keywords").lean(),
+    ]);
+
+    const articlesByCategory = new Map(
+      articleSummaries.map((summary) => [summary._id, summary.articleCount])
+    );
+    const categorySummaries = new Map();
+    const categoryKeywordCounts = new Map();
+    const keywordMap = new Map();
+
+    trendRows.forEach((row) => {
+      const category = row.category || "society";
+      const categorySummary = categorySummaries.get(category) || {
+        totalMentions: 0,
+        keywordCount: 0,
+        latestDate: null,
+        topKeyword: null,
+        topKeywordCount: 0,
+      };
+
+      categorySummary.totalMentions += row.count;
+      categorySummary.keywordCount += 1;
+      categorySummary.latestDate =
+        categorySummary.latestDate && categorySummary.latestDate > row.latestDate
+          ? categorySummary.latestDate
+          : row.latestDate;
+
+      if (!categorySummary.topKeyword || row.count > categorySummary.topKeywordCount) {
+        categorySummary.topKeyword = row.keyword;
+        categorySummary.topKeywordCount = row.count;
+      }
+
+      categorySummaries.set(category, categorySummary);
+    });
+
+    trendRows.forEach((row) => {
+      const category = row.category || "society";
+      const usedInCategory = categoryKeywordCounts.get(category) || 0;
+
+      if (usedInCategory >= 26 && !keywordMap.has(row.keyword)) {
+        return;
+      }
+
+      if (!keywordMap.has(row.keyword) && keywordMap.size >= 180) {
+        return;
+      }
+
+      const keywordSummary = keywordMap.get(row.keyword) || {
+        id: `keyword:${row.keyword}`,
+        type: "keyword",
+        keyword: row.keyword,
+        label: row.keyword,
+        count: 0,
+        latestDate: row.latestDate,
+        categories: [],
+      };
+
+      keywordSummary.count += row.count;
+      keywordSummary.latestDate =
+        keywordSummary.latestDate && keywordSummary.latestDate > row.latestDate
+          ? keywordSummary.latestDate
+          : row.latestDate;
+      keywordSummary.categories.push({
+        id: category,
+        label: row.categoryLabel,
+        count: row.count,
+      });
+
+      keywordMap.set(row.keyword, keywordSummary);
+      categoryKeywordCounts.set(category, usedInCategory + 1);
+    });
+
+    const keywordSet = new Set(keywordMap.keys());
+    const categoryNodes = GALAXIES.map((galaxy) => {
+      const summary = categorySummaries.get(galaxy.id);
+
+      return {
+        ...galaxy,
+        id: `category:${galaxy.id}`,
+        category: galaxy.id,
+        type: "category",
+        label: galaxy.name,
+        latestDate: summary?.latestDate || null,
+        totalMentions: summary?.totalMentions || 0,
+        keywordCount: summary?.keywordCount || 0,
+        articleCount: articlesByCategory.get(galaxy.id) || 0,
+        topKeyword: summary?.topKeyword || null,
+        topKeywordCount: summary?.topKeywordCount || 0,
+      };
+    });
+
+    const keywordNodes = [...keywordMap.values()].map((node) => {
+      const sortedCategories = node.categories.sort((a, b) => b.count - a.count);
+
+      return {
+        ...node,
+        categories: sortedCategories,
+        category: sortedCategories[0]?.id || "society",
+        shared: sortedCategories.length > 1,
+      };
+    });
+
+    const linkCounts = new Map();
+    const categoryPairCounts = new Map();
+
+    keywordNodes.forEach((node) => {
+      node.categories.forEach((category) => {
+        const key = `category:${category.id}|||${node.id}`;
+        linkCounts.set(key, {
+          source: `category:${category.id}`,
+          target: node.id,
+          count: category.count,
+          type: "category-keyword",
+        });
+      });
+
+      for (let i = 0; i < node.categories.length; i += 1) {
+        for (let j = i + 1; j < node.categories.length; j += 1) {
+          const pair = [node.categories[i].id, node.categories[j].id].sort();
+          const key = pair.join("|||");
+          categoryPairCounts.set(key, (categoryPairCounts.get(key) || 0) + 1);
+        }
+      }
+    });
+
+    articles.forEach((article) => {
+      const keywords = [...new Set(article.keywords || [])]
+        .filter((keyword) => keywordSet.has(keyword))
+        .slice(0, 12);
+
+      for (let i = 0; i < keywords.length; i += 1) {
+        for (let j = i + 1; j < keywords.length; j += 1) {
+          const pair = [keywords[i], keywords[j]].sort();
+          const key = `keyword:${pair[0]}|||keyword:${pair[1]}`;
+          const current = linkCounts.get(key);
+
+          linkCounts.set(key, {
+            source: `keyword:${pair[0]}`,
+            target: `keyword:${pair[1]}`,
+            count: (current?.count || 0) + 1,
+            type: "keyword-keyword",
+          });
+        }
+      }
+    });
+
+    categoryPairCounts.forEach((count, key) => {
+      const [sourceCategory, targetCategory] = key.split("|||");
+
+      linkCounts.set(`category:${sourceCategory}|||category:${targetCategory}`, {
+        source: `category:${sourceCategory}`,
+        target: `category:${targetCategory}`,
+        count,
+        type: "category-category",
+      });
+    });
+
+    CATEGORY_CONNECTIONS.forEach(([sourceCategory, targetCategory, weight]) => {
+      const pair = [sourceCategory, targetCategory].sort();
+      const key = `category:${pair[0]}|||category:${pair[1]}`;
+      const current = linkCounts.get(key);
+
+      linkCounts.set(key, {
+        source: `category:${pair[0]}`,
+        target: `category:${pair[1]}`,
+        count: (current?.count || 0) + weight,
+        type: "category-category",
+      });
+    });
+
+    const links = [...linkCounts.values()]
+      .sort((a, b) => {
+        const typeWeight = {
+          "category-category": 3,
+          "category-keyword": 2,
+          "keyword-keyword": 1,
+        };
+
+        return (
+          (typeWeight[b.type] || 0) - (typeWeight[a.type] || 0) ||
+          b.count - a.count
+        );
+      })
+      .slice(0, 520);
+
+    res.json({
+      latestDate,
+      startDate,
+      nodes: [...categoryNodes, ...keywordNodes],
+      links,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to load unified universe",
+      error: error.message,
+    });
+  }
+});
 
 router.get("/galaxies", async (req, res) => {
   try {

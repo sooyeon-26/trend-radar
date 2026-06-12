@@ -13,11 +13,12 @@ import "./App.css";
 
 const API_BASE_URL = "http://localhost:4000/api/trends";
 const FILTERS = [
-  { label: "Today", value: "1" },
-  { label: "3D", value: "3" },
-  { label: "7D", value: "7" },
+  { label: "오늘", value: "1" },
+  { label: "3일", value: "3" },
+  { label: "7일", value: "7" },
 ];
 const DEFAULT_CATEGORY = "society";
+const getInitialGraphZoom = () => 1;
 const GALAXY_FALLBACKS = {
   society: {
     name: "Society",
@@ -27,6 +28,9 @@ const GALAXY_FALLBACKS = {
     description: "A dense urban galaxy where incidents and public systems converge.",
     signalLabel: "Civic signals",
     core: { x: 50, y: 46 },
+    x: 50,
+    y: 47,
+    scale: 1.08,
   },
   politics: {
     name: "Politics",
@@ -36,6 +40,9 @@ const GALAXY_FALLBACKS = {
     description: "A charged red cluster where power, elections, and policy collide.",
     signalLabel: "Policy signals",
     core: { x: 35, y: 38 },
+    x: 33,
+    y: 30,
+    scale: 0.88,
   },
   economy: {
     name: "Economy",
@@ -45,6 +52,9 @@ const GALAXY_FALLBACKS = {
     description: "A bright trade galaxy shaped by markets, capital, and prices.",
     signalLabel: "Market signals",
     core: { x: 66, y: 36 },
+    x: 66,
+    y: 31,
+    scale: 0.98,
   },
   technology: {
     name: "IT",
@@ -54,6 +64,9 @@ const GALAXY_FALLBACKS = {
     description: "A green circuit galaxy linking AI, chips, platforms, and data.",
     signalLabel: "Tech signals",
     core: { x: 36, y: 64 },
+    x: 33,
+    y: 65,
+    scale: 0.92,
   },
   world: {
     name: "World",
@@ -63,6 +76,9 @@ const GALAXY_FALLBACKS = {
     description: "A distant galaxy where diplomacy, conflict, and global shifts ripple outward.",
     signalLabel: "Global signals",
     core: { x: 68, y: 64 },
+    x: 70,
+    y: 62,
+    scale: 1,
   },
   culture: {
     name: "Culture",
@@ -72,6 +88,9 @@ const GALAXY_FALLBACKS = {
     description: "A vivid nebula of content, performance, fandom, and public taste.",
     signalLabel: "Culture signals",
     core: { x: 26, y: 56 },
+    x: 19,
+    y: 47,
+    scale: 0.84,
   },
   sports: {
     name: "Sports",
@@ -81,6 +100,9 @@ const GALAXY_FALLBACKS = {
     description: "A fast-moving galaxy of games, records, rivalries, and fan energy.",
     signalLabel: "Game signals",
     core: { x: 80, y: 48 },
+    x: 82,
+    y: 47,
+    scale: 0.86,
   },
   science: {
     name: "Science",
@@ -90,6 +112,9 @@ const GALAXY_FALLBACKS = {
     description: "A deep exploration galaxy for research, space, climate, and discovery.",
     signalLabel: "Research signals",
     core: { x: 52, y: 72 },
+    x: 54,
+    y: 78,
+    scale: 0.94,
   },
   health: {
     name: "Health",
@@ -99,7 +124,57 @@ const GALAXY_FALLBACKS = {
     description: "A life-signal galaxy tracking medicine, disease, safety, and care.",
     signalLabel: "Health signals",
     core: { x: 50, y: 24 },
+    x: 49,
+    y: 19,
+    scale: 0.86,
   },
+};
+
+const FALLBACK_GALAXIES = Object.entries(GALAXY_FALLBACKS).map(
+  ([id, galaxy]) => ({
+    id,
+    articleCount: 0,
+    keywordCount: 0,
+    totalMentions: 0,
+    topKeyword: "-",
+    ...galaxy,
+  })
+);
+
+const CATEGORY_NAMES = {
+  society: "사회",
+  politics: "정치",
+  economy: "경제",
+  technology: "IT",
+  world: "세계",
+  culture: "문화",
+  sports: "스포츠",
+  science: "과학",
+  health: "건강",
+};
+
+const CATEGORY_DESCRIPTIONS = {
+  society: "사건, 제도, 시민 생활의 흐름이 모이는 분야입니다.",
+  politics: "정치, 선거, 정책, 권력 구조의 변화를 추적합니다.",
+  economy: "시장, 투자, 물가, 산업 흐름을 관측합니다.",
+  technology: "AI, 반도체, 플랫폼, 기술 산업의 신호를 모읍니다.",
+  world: "국제 정세, 외교, 분쟁, 글로벌 변화를 연결합니다.",
+  culture: "콘텐츠, 공연, 대중문화, 라이프스타일 이슈를 모읍니다.",
+  sports: "경기, 선수, 기록, 팬덤 흐름을 추적합니다.",
+  science: "연구, 우주, 기후, 발견의 흐름을 관측합니다.",
+  health: "의료, 질병, 건강, 돌봄 관련 신호를 모읍니다.",
+};
+
+const UNIVERSE_POSITIONS = {
+  society: { x: 43, y: 48 },
+  politics: { x: 28, y: 33 },
+  economy: { x: 66, y: 31 },
+  technology: { x: 35, y: 68 },
+  world: { x: 69, y: 65 },
+  culture: { x: 20, y: 52 },
+  sports: { x: 79, y: 47 },
+  science: { x: 53, y: 78 },
+  health: { x: 51, y: 19 },
 };
 
 function hexToRgba(hex, alpha) {
@@ -117,164 +192,17 @@ function hexToRgba(hex, alpha) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
-const CHO_ROMAN = [
-  "g",
-  "kk",
-  "n",
-  "d",
-  "tt",
-  "r",
-  "m",
-  "b",
-  "pp",
-  "s",
-  "ss",
-  "",
-  "j",
-  "jj",
-  "ch",
-  "k",
-  "t",
-  "p",
-  "h",
-];
-const JUNG_ROMAN = [
-  "a",
-  "ae",
-  "ya",
-  "yae",
-  "eo",
-  "e",
-  "yeo",
-  "ye",
-  "o",
-  "wa",
-  "wae",
-  "oe",
-  "yo",
-  "u",
-  "wo",
-  "we",
-  "wi",
-  "yu",
-  "eu",
-  "ui",
-  "i",
-];
-const JONG_ROMAN = [
-  "",
-  "k",
-  "k",
-  "ks",
-  "n",
-  "nj",
-  "nh",
-  "t",
-  "l",
-  "lk",
-  "lm",
-  "lb",
-  "ls",
-  "lt",
-  "lp",
-  "lh",
-  "m",
-  "p",
-  "ps",
-  "t",
-  "t",
-  "ng",
-  "t",
-  "t",
-  "k",
-  "t",
-  "p",
-  "t",
-];
-
-function romanizeHangul(text) {
-  return String(text)
-    .split("")
-    .map((character) => {
-      const code = character.charCodeAt(0);
-
-      if (code < 0xac00 || code > 0xd7a3) {
-        return character;
-      }
-
-      const offset = code - 0xac00;
-      const cho = Math.floor(offset / 588);
-      const jung = Math.floor((offset % 588) / 28);
-      const jong = offset % 28;
-
-      return `${CHO_ROMAN[cho]}${JUNG_ROMAN[jung]}${JONG_ROMAN[jong]}`;
-    })
-    .join("");
-}
-
 function formatDisplayText(value) {
-  return romanizeHangul(value || "");
+  return String(value || "");
 }
 
-const NODE_LAYOUTS = [
-  { x: 64, y: 26 },
-  { x: 72, y: 42 },
-  { x: 63, y: 61 },
-  { x: 47, y: 68 },
-  { x: 31, y: 60 },
-  { x: 25, y: 42 },
-  { x: 34, y: 25 },
-  { x: 50, y: 18 },
-  { x: 80, y: 27 },
-  { x: 82, y: 60 },
-  { x: 58, y: 82 },
-  { x: 22, y: 76 },
-  { x: 14, y: 52 },
-  { x: 19, y: 20 },
-  { x: 44, y: 8 },
-  { x: 74, y: 12 },
-  { x: 88, y: 43 },
-  { x: 71, y: 76 },
-  { x: 39, y: 86 },
-  { x: 10, y: 34 },
-];
+function getGalaxyDisplayName(galaxy) {
+  return CATEGORY_NAMES[galaxy?.id] || galaxy?.name || "사회";
+}
 
-const CLUSTER_CENTERS = [
-  { x: 30, y: 34, hue: 195 },
-  { x: 66, y: 33, hue: 210 },
-  { x: 43, y: 65, hue: 185 },
-  { x: 72, y: 68, hue: 205 },
-  { x: 22, y: 68, hue: 190 },
-  { x: 52, y: 47, hue: 200 },
-];
-
-const TOP_NODE_LAYOUTS = [
-  { x: 48, y: 52 },
-  { x: 42, y: 39 },
-  { x: 60, y: 40 },
-  { x: 37, y: 55 },
-  { x: 63, y: 56 },
-  { x: 49, y: 66 },
-  { x: 30, y: 43 },
-  { x: 70, y: 44 },
-  { x: 31, y: 66 },
-  { x: 71, y: 67 },
-];
-
-const AMBIENT_DOTS = Array.from({ length: 150 }, (_, index) => {
-  const column = index % 15;
-  const row = Math.floor(index / 15);
-  const wave = Math.sin(index * 1.7);
-  const drift = Math.cos(index * 0.9);
-
-  return {
-    id: index,
-    x: 7 + column * 6.2 + drift * 1.8,
-    y: 12 + row * 7.8 + wave * 2.4,
-    size: 1.2 + ((index * 7) % 4) * 0.55,
-    alpha: 0.08 + ((index * 11) % 6) * 0.025,
-  };
-});
+function getGalaxyDescription(galaxy) {
+  return CATEGORY_DESCRIPTIONS[galaxy?.id] || "이 분야의 신호를 기다리는 중입니다.";
+}
 
 const DENSITY_DOTS = Array.from({ length: 820 }, (_, index) => {
   const angle = index * 2.399963 + Math.sin(index * 0.37) * 0.6;
@@ -302,13 +230,12 @@ function App() {
   const [relatedKeywords, setRelatedKeywords] = useState([]);
   const [relatedArticleCount, setRelatedArticleCount] = useState(0);
   const [articles, setArticles] = useState([]);
-  const [clusters, setClusters] = useState([]);
-  const [network, setNetwork] = useState({ nodes: [], links: [] });
+  const [universeGraph, setUniverseGraph] = useState({ nodes: [], links: [] });
   const [range, setRange] = useState("1");
   const [latestDate, setLatestDate] = useState("-");
   const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
-  const [graphZoom, setGraphZoom] = useState(1);
-  const [viewMode, setViewMode] = useState("inside");
+  const [graphZoom, setGraphZoom] = useState(getInitialGraphZoom);
+  const [focusedNodeId, setFocusedNodeId] = useState(null);
   const [articlesExpanded, setArticlesExpanded] = useState(false);
 
   useEffect(() => {
@@ -339,19 +266,17 @@ function App() {
     Promise.all([
       axios.get(`${API_BASE_URL}/galaxies?days=${selectedRange}`),
       axios.get(`${API_BASE_URL}/top?days=${selectedRange}&${categoryQuery}`),
-      axios.get(`${API_BASE_URL}/clusters?${categoryQuery}`),
-      axios.get(`${API_BASE_URL}/network?days=${selectedRange}&${categoryQuery}`),
+      axios.get(`${API_BASE_URL}/universe?days=${selectedRange}`),
     ])
-      .then(([galaxyResponse, topResponse, clusterResponse, networkResponse]) => {
+      .then(([galaxyResponse, topResponse, universeResponse]) => {
         const topTrends = topResponse.data.trends || [];
 
         setGalaxies(galaxyResponse.data.galaxies || []);
         setTrends(topTrends);
         setLatestDate(topResponse.data.latestDate || "-");
-        setClusters(clusterResponse.data.clusters || []);
-        setNetwork({
-          nodes: networkResponse.data.nodes || [],
-          links: networkResponse.data.links || [],
+        setUniverseGraph({
+          nodes: universeResponse.data.nodes || [],
+          links: universeResponse.data.links || [],
         });
 
         if (topTrends.length > 0) {
@@ -360,7 +285,7 @@ function App() {
               ?.keyword || topTrends[0].keyword;
 
           setKeyword(nextKeyword);
-          selectKeyword(nextKeyword, category);
+          selectKeyword(nextKeyword, category, { focus: false });
           return;
         }
 
@@ -376,7 +301,11 @@ function App() {
       });
   };
 
-  const selectKeyword = (searchKeyword, category = selectedCategory) => {
+  const selectKeyword = (
+    searchKeyword,
+    category = selectedCategory,
+    options = { focus: true }
+  ) => {
     const trimmedKeyword = searchKeyword.trim();
 
     if (!trimmedKeyword) {
@@ -387,6 +316,9 @@ function App() {
     const categoryQuery = getCategoryQuery(category);
 
     setSelectedKeyword(trimmedKeyword);
+    if (options.focus) {
+      setFocusedNodeId(`keyword:${trimmedKeyword}`);
+    }
     setArticlesExpanded(false);
 
     Promise.all([
@@ -405,19 +337,21 @@ function App() {
       });
   };
 
-  const selectedMentions = trendHistory.reduce(
-    (sum, trend) => sum + trend.count,
-    0
-  );
   const themedGalaxies = useMemo(
-    () =>
-      galaxies.map((galaxy) => ({
+    () => {
+      const sourceGalaxies = galaxies.length > 0 ? galaxies : FALLBACK_GALAXIES;
+
+      return sourceGalaxies.map((galaxy) => ({
         ...(GALAXY_FALLBACKS[galaxy.id] || {}),
         ...galaxy,
         core:
           galaxy.core ||
           GALAXY_FALLBACKS[galaxy.id]?.core || { x: 50, y: 46 },
-      })),
+        x: galaxy.x ?? GALAXY_FALLBACKS[galaxy.id]?.x ?? 50,
+        y: galaxy.y ?? GALAXY_FALLBACKS[galaxy.id]?.y ?? 50,
+        scale: galaxy.scale ?? GALAXY_FALLBACKS[galaxy.id]?.scale ?? 0.9,
+      }));
+    },
     [galaxies]
   );
   const selectedGalaxy = useMemo(
@@ -428,290 +362,298 @@ function App() {
       },
     [themedGalaxies, selectedCategory]
   );
-  const topKeyword = trends[0];
-  const maxTrendCount = Math.max(...trends.map((item) => item.count), 1);
-  const strongestRelation = relatedKeywords[0];
-  const maxRelatedCount = Math.max(
-    ...relatedKeywords.map((item) => item.count),
-    1
-  );
-
-  const avgRelationStrength =
-    relatedKeywords.length > 0
-      ? Math.round(
-          relatedKeywords.reduce((sum, item) => sum + item.count, 0) /
-            relatedKeywords.length
-        )
-      : 0;
-  const relationBuckets = relatedKeywords.slice(0, 4);
   const relatedKeywordSet = useMemo(
     () => new Set(relatedKeywords.map((item) => item.keyword)),
     [relatedKeywords]
   );
   const trendDeltaSummary = useMemo(() => {
     if (trendHistory.length < 2) {
-      return "Waiting for trend movement";
+      return "추세 데이터 대기 중";
     }
 
     const recentHistory = trendHistory.slice(-3);
     const firstCount = recentHistory[0]?.count || 0;
     const lastCount = recentHistory[recentHistory.length - 1]?.count || 0;
     const delta = lastCount - firstCount;
-    const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+    const direction = delta > 0 ? "증가" : delta < 0 ? "감소" : "변동 없음";
     const signedDelta = delta > 0 ? `+${delta}` : `${delta}`;
 
-    return `${signedDelta} mentions ${direction} over ${recentHistory.length} days`;
+    return `최근 ${recentHistory.length}일간 ${signedDelta}회 ${direction}`;
   }, [trendHistory]);
-  const relationNodes = useMemo(
-    () =>
-      relatedKeywords.slice(0, NODE_LAYOUTS.length).map((item, index) => {
-        const layout = NODE_LAYOUTS[index % NODE_LAYOUTS.length];
-        const strength = item.count / maxRelatedCount;
+  const selectedNeighborhood = useMemo(() => {
+    const categoryIds = new Set([selectedCategory]);
+    const nodeIds = new Set([`category:${selectedCategory}`]);
 
-        return {
-          ...item,
-          x: layout.x,
-          y: layout.y,
-          size: 10 + strength * 18,
-          alpha: 0.38 + strength * 0.5,
-          strength,
-        };
-      }),
-    [relatedKeywords, maxRelatedCount]
-  );
-  const densityNodes = useMemo(() => {
-    const nodesByKeyword = new Map();
-    const baseHue = selectedGalaxy?.hue || 195;
+    universeGraph.links.forEach((link) => {
+      const sourceIsCategory = link.source.startsWith("category:");
+      const targetIsCategory = link.target.startsWith("category:");
+      const sourceCategory = sourceIsCategory
+        ? link.source.replace("category:", "")
+        : null;
+      const targetCategory = targetIsCategory
+        ? link.target.replace("category:", "")
+        : null;
 
-    const addNode = (item, nextNode) => {
-      const key = item.keyword;
-      const currentNode = nodesByKeyword.get(key);
-      const currentPriority = currentNode?.priority || 0;
-      const nextPriority = nextNode.priority || 0;
+      if (link.type === "category-category") {
+        if (sourceCategory === selectedCategory && targetCategory) {
+          categoryIds.add(targetCategory);
+          nodeIds.add(link.target);
+        }
 
-      if (
-        !currentNode ||
-        nextPriority > currentPriority ||
-        (nextPriority === currentPriority && nextNode.count > currentNode.count)
-      ) {
-        nodesByKeyword.set(key, {
-          ...item,
-          ...nextNode,
-          keyword: item.keyword,
-          count: nextNode.count,
-          sources: currentNode
-            ? Array.from(new Set([...currentNode.sources, nextNode.source]))
-            : [nextNode.source],
-        });
-        return;
+        if (targetCategory === selectedCategory && sourceCategory) {
+          categoryIds.add(sourceCategory);
+          nodeIds.add(link.source);
+        }
       }
 
-      currentNode.sources = Array.from(
-        new Set([...currentNode.sources, nextNode.source])
-      );
-    };
-
-    network.nodes.slice(0, 80).forEach((item, index) => {
-      const topLayout = TOP_NODE_LAYOUTS[index];
-      const angle = index * 2.399963 + Math.sin(index * 0.7) * 0.32;
-      const radius = 11 + Math.sqrt(index + 1) * 5.6;
-      const strength = item.count / maxTrendCount;
-
-      addNode(item, {
-        x: topLayout?.x || 50 + Math.cos(angle) * radius * 1.08,
-        y: topLayout?.y || 51 + Math.sin(angle) * radius * 0.78,
-        size: index < 10 ? 8 + strength * 26 : 3.5 + strength * 14,
-        alpha: index < 10 ? 0.56 + strength * 0.4 : 0.24 + strength * 0.46,
-        strength,
-        cluster: index < 10 ? "Top 10" : "Full network",
-        clusterIndex: 5,
-        hue: index < 10 ? baseHue : baseHue + 8,
-        source: index < 10 ? "top" : "network",
-        priority: index < 10 ? 4 : 2,
-        count: item.count,
-      });
-    });
-
-    clusters.forEach((cluster, clusterIndex) => {
-      const center = CLUSTER_CENTERS[clusterIndex % CLUSTER_CENTERS.length];
-
-      cluster.keywords.slice(0, 18).forEach((item, keywordIndex) => {
-        const angle = keywordIndex * 2.399963 + clusterIndex * 0.72;
-        const radius = 4 + Math.sqrt(keywordIndex + 1) * 4.4;
-        const strength = item.count / maxTrendCount;
-
-        addNode(item, {
-          x: center.x + Math.cos(angle) * radius * 1.05,
-          y: center.y + Math.sin(angle) * radius * 0.84,
-          size: 4 + strength * 16,
-          alpha: 0.34 + strength * 0.54,
-          strength,
-          cluster: cluster.name,
-          clusterIndex,
-          hue: baseHue + (clusterIndex - 2) * 9,
-          source: "cluster",
-          priority: 1,
-          count: item.count,
-        });
-      });
-    });
-
-    trends.slice(0, 10).forEach((item, index) => {
-      const layout = TOP_NODE_LAYOUTS[index];
-      const strength = item.count / maxTrendCount;
-
-      addNode(item, {
-        x: layout.x,
-        y: layout.y,
-        size: 8 + strength * 26,
-        alpha: 0.52 + strength * 0.42,
-        strength,
-        cluster: "Top 10",
-        clusterIndex: 5,
-        hue: baseHue,
-        source: "top",
-        priority: 4,
-        count: item.count,
-      });
-    });
-
-    trends.slice(10, 52).forEach((item, index) => {
-      const angle = index * 2.399963 + Math.sin(index * 1.13) * 0.34;
-      const radius = 24 + Math.sqrt(index + 1) * 5.8;
-      const strength = item.count / maxTrendCount;
-
-      addNode(item, {
-        x: 50 + Math.cos(angle) * radius * 1.08,
-        y: 51 + Math.sin(angle) * radius * 0.74,
-        size: 3.5 + strength * 13,
-        alpha: 0.22 + strength * 0.42,
-        strength,
-        cluster: "Trending keywords",
-        clusterIndex: 5,
-        hue: baseHue + 10,
-        source: "trend",
-        priority: 2,
-        count: item.count,
-      });
-    });
-
-    relatedKeywords.slice(0, 28).forEach((item, index) => {
-      const angle = index * 2.399963 + 0.5;
-      const radius = 9 + Math.sqrt(index + 1) * 4.9;
-      const strength = item.count / maxRelatedCount;
-
-      addNode(item, {
-        x: 50 + Math.cos(angle) * radius * 0.92,
-        y: 50 + Math.sin(angle) * radius * 0.72,
-        size: 5 + strength * 18,
-        alpha: 0.45 + strength * 0.5,
-        strength,
-        cluster: selectedKeyword || "Selected keyword",
-        clusterIndex: 6,
-        hue: baseHue - 24,
-        source: "related",
-        priority: 3,
-        count: item.count,
-      });
-    });
-
-    if (selectedKeyword) {
-      const currentSelectedNode = nodesByKeyword.get(selectedKeyword);
-
-      addNode(
-        { keyword: selectedKeyword },
-        {
-          x: currentSelectedNode?.x || 48,
-          y: currentSelectedNode?.y || 52,
-          size: 22,
-          alpha: 0.96,
-          strength: 1,
-          cluster: "Selected keyword",
-          clusterIndex: 6,
-          hue: baseHue - 24,
-          source: "selected",
-          priority: 5,
-          count: selectedMentions || topKeyword?.count || 1,
+      if (link.type === "category-keyword") {
+        if (sourceCategory === selectedCategory) {
+          nodeIds.add(link.target);
         }
-      );
-    }
 
-    return Array.from(nodesByKeyword.values())
-      .filter((node) => node.x >= 3 && node.x <= 97 && node.y >= 5 && node.y <= 95)
-      .slice(0, 120);
+        if (targetCategory === selectedCategory) {
+          nodeIds.add(link.source);
+        }
+      }
+    });
+
+    return { categoryIds, nodeIds };
+  }, [universeGraph.links, selectedCategory]);
+
+  const densityNodes = useMemo(() => {
+    const categoryNodeMap = new Map(
+      universeGraph.nodes
+        .filter((node) => node.type === "category")
+        .map((node) => [node.category, node])
+    );
+    const categoryLayoutMap = new Map(
+      themedGalaxies.map((galaxy) => {
+        const universePosition = UNIVERSE_POSITIONS[galaxy.id] || galaxy;
+        const x = 16 + (universePosition.x / 100) * 68;
+        const y = 10 + (universePosition.y / 100) * 78;
+
+        return [
+          galaxy.id,
+          {
+            ...galaxy,
+            ...(categoryNodeMap.get(galaxy.id) || {}),
+            x,
+            y,
+          },
+        ];
+      })
+    );
+    const maxUniverseCount = Math.max(
+      ...universeGraph.nodes
+        .filter((node) => node.type === "keyword")
+        .map((node) => node.count || 0),
+      1
+    );
+    const categoryKeywordIndex = new Map();
+    const categoryNodes = themedGalaxies.map((galaxy) => {
+      const categoryNode = categoryLayoutMap.get(galaxy.id);
+      const mentionStrength =
+        Math.sqrt(categoryNode?.totalMentions || 1) /
+        Math.sqrt(Math.max(selectedGalaxy?.totalMentions || 1, 1));
+
+      return {
+        ...categoryNode,
+        id: `category:${galaxy.id}`,
+        keyword: getGalaxyDisplayName(galaxy),
+        label: getGalaxyDisplayName(galaxy),
+        count: categoryNode?.totalMentions || 0,
+        size: 10 + galaxy.scale * 4 + Math.min(mentionStrength, 1.2) * 4,
+        alpha: selectedCategory === galaxy.id ? 0.98 : 0.72,
+        strength: Math.min(mentionStrength, 1),
+        hue: galaxy.hue || 195,
+        source: "category",
+        type: "category",
+        category: galaxy.id,
+        priority: selectedCategory === galaxy.id ? 6 : 5,
+      };
+    });
+
+    const keywordNodes = universeGraph.nodes
+      .filter((node) => node.type === "keyword")
+      .map((node, index) => {
+        const categories = node.categories?.length
+          ? node.categories
+          : [{ id: node.category || DEFAULT_CATEGORY, count: node.count || 1 }];
+        const totalCategoryCount = categories.reduce(
+          (sum, category) => sum + (category.count || 0),
+          0
+        ) || 1;
+        const primaryCategory =
+          categories[0]?.id || node.category || DEFAULT_CATEGORY;
+        const primaryGalaxy =
+          categoryLayoutMap.get(primaryCategory) ||
+          categoryLayoutMap.get(DEFAULT_CATEGORY);
+        const isShared = categories.length > 1;
+        let x = 0;
+        let y = 0;
+
+        if (isShared) {
+          categories.forEach((category) => {
+            const categoryGalaxy =
+              categoryLayoutMap.get(category.id) ||
+              categoryLayoutMap.get(DEFAULT_CATEGORY);
+            const weight = (category.count || 1) / totalCategoryCount;
+
+            x += categoryGalaxy.x * weight;
+            y += categoryGalaxy.y * weight;
+          });
+
+          const jitterAngle = index * 2.399963;
+          const jitter = 1.6 + (index % 7) * 0.36;
+
+          x += Math.cos(jitterAngle) * jitter;
+          y += Math.sin(jitterAngle) * jitter * 0.72;
+        } else {
+          const usedIndex = categoryKeywordIndex.get(primaryCategory) || 0;
+          categoryKeywordIndex.set(primaryCategory, usedIndex + 1);
+
+          const angle =
+            usedIndex * 2.399963 +
+            Math.sin(usedIndex * 0.73 + (primaryGalaxy.hue || 0)) * 0.18;
+          const radius =
+            4.8 +
+            Math.sqrt(usedIndex + 1) *
+              (2.7 + (primaryGalaxy.scale || 0.9) * 0.7);
+          const arm = usedIndex % 8 === 0 ? 1.28 : 1;
+
+          x = primaryGalaxy.x + Math.cos(angle) * radius * 1.16 * arm;
+          y = primaryGalaxy.y + Math.sin(angle) * radius * 0.82 * arm;
+        }
+
+        const strength = (node.count || 0) / maxUniverseCount;
+
+        return {
+          ...node,
+          id: node.id || `keyword:${node.keyword}`,
+          keyword: node.keyword,
+          label: node.label || node.keyword,
+          x: Math.min(81, Math.max(19, x)),
+          y: Math.min(88, Math.max(12, y)),
+          size: isShared ? 4.4 + strength * 8.2 : 2.7 + strength * 7.4,
+          alpha:
+            selectedKeyword === node.keyword
+              ? 1
+              : isShared
+                ? 0.56 + strength * 0.24
+                : 0.28 + strength * 0.38,
+          strength,
+          cluster: getGalaxyDisplayName({ id: primaryCategory }),
+          hue: primaryGalaxy?.hue || 195,
+          source: isShared ? "shared" : "network",
+          type: "keyword",
+          category: primaryCategory,
+          priority: isShared ? 3 : 2,
+          count: node.count || 0,
+        };
+      });
+
+    return [...categoryNodes, ...keywordNodes].slice(0, 210);
   }, [
-    clusters,
-    trends,
-    network,
-    relatedKeywords,
-    maxTrendCount,
-    maxRelatedCount,
+    universeGraph,
+    themedGalaxies,
+    selectedCategory,
     selectedKeyword,
-    selectedMentions,
-    topKeyword,
     selectedGalaxy,
   ]);
 
   const densityLinks = useMemo(() => {
-    const links = [];
-    const nodeMap = new Map(densityNodes.map((node) => [node.keyword, node]));
-    const maxNetworkLinkCount = Math.max(
-      ...network.links.map((link) => link.count),
+    const nodeMap = new Map(densityNodes.map((node) => [node.id, node]));
+    const maxUniverseLinkCount = Math.max(
+      ...universeGraph.links.map((link) => link.count || 0),
       1
     );
 
-    network.links.forEach((link) => {
-      const from = nodeMap.get(link.source);
-      const to = nodeMap.get(link.target);
+    return universeGraph.links
+      .map((link) => {
+        const from = nodeMap.get(link.source);
+        const to = nodeMap.get(link.target);
 
-      if (!from || !to) {
-        return;
-      }
-
-      const isSelectedLink =
-        link.source === selectedKeyword || link.target === selectedKeyword;
-      const isTopLink = from.source === "top" && to.source === "top";
-
-      links.push({
-        from,
-        to,
-        strength: link.count / maxNetworkLinkCount,
-        length: Math.hypot(from.x - to.x, from.y - to.y),
-        type: isSelectedLink ? "related" : isTopLink ? "top" : "network",
-      });
-    });
-
-    const selectedNode = nodeMap.get(selectedKeyword);
-
-    if (selectedNode) {
-      relatedKeywords.slice(0, 24).forEach((item) => {
-        const relatedNode = nodeMap.get(item.keyword);
-
-        if (relatedNode) {
-          links.push({
-            from: selectedNode,
-            to: relatedNode,
-            strength: item.count / maxRelatedCount,
-            length: Math.hypot(selectedNode.x - relatedNode.x, selectedNode.y - relatedNode.y),
-            type: "related",
-          });
+        if (!from || !to) {
+          return null;
         }
-      });
-    }
 
-    return links.slice(0, 220);
+        const touchesSelectedKeyword =
+          link.type === "keyword-keyword" &&
+          (from.keyword === selectedKeyword || to.keyword === selectedKeyword);
+        const touchesSelectedCategory =
+          from.category === selectedCategory || to.category === selectedCategory;
+        const visualType =
+          link.type === "category-category"
+            ? "category"
+            : link.type === "category-keyword"
+              ? touchesSelectedCategory
+                ? "belongs-active"
+                : "belongs"
+              : touchesSelectedKeyword
+                ? "related"
+                : "network";
+
+        return {
+          from,
+          to,
+          strength: (link.count || 0) / maxUniverseLinkCount,
+          length: Math.hypot(from.x - to.x, from.y - to.y),
+          relationType: link.type,
+          touchesSelectedCategory,
+          touchesNeighborhood:
+            selectedNeighborhood.nodeIds.has(from.id) ||
+            selectedNeighborhood.nodeIds.has(to.id),
+          type: visualType,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 520);
   }, [
     densityNodes,
-    network,
-    relatedKeywords,
+    universeGraph,
     selectedKeyword,
-    maxRelatedCount,
+    selectedCategory,
+    selectedNeighborhood,
   ]);
 
-  const selectedGraphNode = useMemo(
-    () => densityNodes.find((node) => node.keyword === selectedKeyword),
-    [densityNodes, selectedKeyword]
-  );
+  const graphDetailLevel = useMemo(() => {
+    if (graphZoom < 1.06) {
+      return "overview";
+    }
+
+    if (graphZoom < 1.28) {
+      return "category";
+    }
+
+    return "detail";
+  }, [graphZoom]);
+
+  const focusedGraphNode = useMemo(() => {
+    if (focusedNodeId) {
+      const focusedNode = densityNodes.find((node) => node.id === focusedNodeId);
+
+      if (focusedNode) {
+        return focusedNode;
+      }
+    }
+
+    return (
+      densityNodes.find((node) => node.id === `category:${selectedCategory}`) ||
+      null
+    );
+  }, [densityNodes, focusedNodeId, selectedCategory]);
+  const projectGraphPoint = (node) => {
+    if (!focusedGraphNode || graphZoom <= 1.02) {
+      return { x: node.x, y: node.y };
+    }
+
+    const panStrength = Math.min(1, Math.max(0.52, graphZoom - 0.34));
+
+    return {
+      x: node.x + (50 - focusedGraphNode.x) * panStrength,
+      y: node.y + (50 - focusedGraphNode.y) * panStrength,
+    };
+  };
   const visibleArticles = articlesExpanded ? articles : articles.slice(0, 5);
   const hiddenArticleCount = Math.max(0, articles.length - 5);
 
@@ -721,21 +663,15 @@ function App() {
   };
 
   const selectGalaxy = (galaxyId) => {
+    setFocusedNodeId(`category:${galaxyId}`);
+    setGraphZoom((currentZoom) => Math.max(currentZoom, 1.18));
+
     if (galaxyId === selectedCategory) {
-      setViewMode("inside");
-      setGraphZoom(1);
       return;
     }
 
     setSelectedCategory(galaxyId);
-    setGraphZoom(1);
-    setViewMode("inside");
     setArticlesExpanded(false);
-  };
-
-  const showUniverse = () => {
-    setViewMode("universe");
-    setGraphZoom(0.52);
   };
 
   const handleGraphWheel = (event) => {
@@ -745,37 +681,23 @@ function App() {
 
     event.preventDefault();
 
-    if (viewMode === "universe") {
-      if (event.deltaY < 0) {
-        setViewMode("inside");
-        setGraphZoom(0.78);
-      }
-
-      return;
-    }
-
     setGraphZoom((currentZoom) => {
       const nextZoom =
-        currentZoom + (event.deltaY > 0 ? -0.1 : 0.08);
-      const clampedZoom = Math.min(2.2, Math.max(0.5, Number(nextZoom.toFixed(2))));
+        currentZoom + (event.deltaY > 0 ? -0.08 : 0.07);
 
-      if (clampedZoom <= 0.62 && event.deltaY > 0) {
-        setViewMode("universe");
-      }
-
-      return clampedZoom;
+      return Math.min(1.75, Math.max(0.72, Number(nextZoom.toFixed(2))));
     });
   };
 
   return (
     <main
-      className={`app app-${viewMode}`}
+      className="app app-inside"
       style={{
         "--mouse-x": `${mousePosition.x}%`,
         "--mouse-y": `${mousePosition.y}%`,
         "--graph-zoom": graphZoom,
-        "--focus-x": `${selectedGraphNode?.x || 48}%`,
-        "--focus-y": `${selectedGraphNode?.y || 52}%`,
+        "--focus-x": `${focusedGraphNode?.x || 50}%`,
+        "--focus-y": `${focusedGraphNode?.y || 50}%`,
         "--galaxy-color": selectedGalaxy?.color || "#38bdf8",
         "--galaxy-accent": selectedGalaxy?.accent || "#2dd4bf",
         "--galaxy-glow": hexToRgba(selectedGalaxy?.color || "#38bdf8", 0.22),
@@ -788,8 +710,8 @@ function App() {
       }}
     >
       <section
-        className={`density-hero density-hero-${viewMode}`}
-        aria-label="Keyword density map"
+        className="density-hero density-hero-inside"
+        aria-label="키워드 밀도 지도"
         onWheel={handleGraphWheel}
       >
         <div className="graph-stage">
@@ -800,24 +722,78 @@ function App() {
             aria-hidden="true"
           >
             {densityLinks.map((link, index) => (
-            <line
-              key={`${link.from.keyword}-${link.to.keyword}-${index}`}
-              x1={link.from.x}
-              y1={link.from.y}
-              x2={link.to.x}
-              y2={link.to.y}
-              className={`density-link-${link.type}`}
-              strokeWidth={
-                link.type === "related"
-                  ? 0.16 + link.strength * 0.42
-                  : 0.025 + link.strength * 0.1
-              }
-              opacity={
-                link.type === "related"
-                  ? Math.max(0.34, 0.78 - (link.length || 0) / 130)
-                  : Math.max(0.06, 0.18 - (link.length || 0) / 280)
-              }
-            />
+              (() => {
+                const fromPoint = projectGraphPoint(link.from);
+                const toPoint = projectGraphPoint(link.to);
+
+                return (
+                  <line
+                    key={`${link.from.keyword}-${link.to.keyword}-${index}`}
+                    x1={fromPoint.x}
+                    y1={fromPoint.y}
+                    x2={toPoint.x}
+                    y2={toPoint.y}
+                    className={`density-link-${link.type} ${
+                      link.touchesSelectedCategory ? "is-neighborhood" : ""
+                    }`}
+                    strokeWidth={
+                      link.type === "category"
+                        ? 0.06 + link.strength * 0.08
+                        : link.type === "belongs-active"
+                          ? 0.22 + link.strength * 0.32
+                          : link.type === "belongs"
+                            ? 0.06 + link.strength * 0.1
+                            : link.type === "related"
+                              ? 0.06 + link.strength * 0.2
+                              : 0.018 + link.strength * 0.06
+                    }
+                    opacity={(() => {
+                      const baseOpacity =
+                        link.type === "category"
+                          ? Math.max(0.025, 0.09 - (link.length || 0) / 480)
+                          : link.type === "belongs-active"
+                            ? Math.max(0.52, 0.9 - (link.length || 0) / 190)
+                            : link.type === "belongs"
+                              ? Math.max(0.05, 0.14 - (link.length || 0) / 360)
+                              : link.type === "related"
+                          ? Math.max(0.24, 0.62 - (link.length || 0) / 170)
+                                : Math.max(0.055, 0.18 - (link.length || 0) / 320);
+                      const isCategoryLink = link.type === "category";
+                      const isBelongsLink =
+                        link.type === "belongs" || link.type === "belongs-active";
+                      const touchesSelectedCategory =
+                        link.from.category === selectedCategory ||
+                        link.to.category === selectedCategory;
+                      const touchesFocusedNode =
+                        focusedGraphNode &&
+                        (link.from.id === focusedGraphNode.id ||
+                          link.to.id === focusedGraphNode.id);
+
+                      if (graphDetailLevel === "overview") {
+                        if (link.type === "belongs-active") {
+                          return Math.min(baseOpacity, 0.86);
+                        }
+
+                        return isCategoryLink ? Math.min(baseOpacity, 0.08) : 0;
+                      }
+
+                      if (touchesFocusedNode) {
+                        return Math.min(baseOpacity * 1.8, 0.78);
+                      }
+
+                      if (graphDetailLevel === "category") {
+                        if (isBelongsLink) {
+                          return touchesSelectedCategory ? baseOpacity : baseOpacity * 0.18;
+                        }
+
+                        return isCategoryLink ? baseOpacity * 0.45 : baseOpacity * 0.2;
+                      }
+
+                      return link.touchesNeighborhood ? baseOpacity : baseOpacity * 0.34;
+                    })()}
+                  />
+                );
+              })()
             ))}
           </svg>
 
@@ -839,126 +815,149 @@ function App() {
           <div className="density-core" aria-hidden="true" />
 
           {densityNodes.map((node) => {
-            const isSelected = node.keyword === selectedKeyword;
-            const isRelated = relatedKeywordSet.has(node.keyword);
-            const visibleAlpha = selectedKeyword
-              ? isSelected
-                ? 1
-                : isRelated
-                  ? Math.max(node.alpha, 0.68)
-                  : Math.min(node.alpha, 0.58)
-              : node.alpha;
+            const isCategoryNode = node.type === "category";
+            const isSelected =
+              isCategoryNode
+                ? node.category === selectedCategory
+                : node.keyword === selectedKeyword;
+            const isRelated = !isCategoryNode && relatedKeywordSet.has(node.keyword);
+            const isSelectedCategoryKeyword =
+              !isCategoryNode && node.category === selectedCategory;
+            const isNeighborhoodNode = selectedNeighborhood.nodeIds.has(node.id);
+            const isNeighborCategory =
+              isCategoryNode &&
+              node.category !== selectedCategory &&
+              selectedNeighborhood.categoryIds.has(node.category);
+            const zoomAlpha =
+              graphDetailLevel === "overview"
+                ? isCategoryNode
+                  ? isSelected || isNeighborCategory
+                    ? Math.max(node.alpha, 0.9)
+                    : Math.min(node.alpha, 0.36)
+                  : isSelectedCategoryKeyword || isRelated || isSelected
+                    ? Math.max(node.alpha, 0.78)
+                    : 0
+                : graphDetailLevel === "category"
+                  ? isCategoryNode
+                    ? isSelected || isNeighborCategory
+                      ? Math.max(node.alpha, 0.9)
+                      : Math.min(node.alpha, 0.32)
+                    : isSelectedCategoryKeyword || isRelated || isSelected
+                      ? Math.max(node.alpha, 0.78)
+                      : Math.min(node.alpha, 0.08)
+                  : isNeighborhoodNode || isSelected || isRelated
+                    ? Math.max(node.alpha, 0.62)
+                    : Math.min(node.alpha, 0.28);
+            const visibleAlpha =
+              graphDetailLevel === "overview" &&
+              !isCategoryNode &&
+              !(isSelectedCategoryKeyword || isRelated || isSelected)
+                ? 0
+                : selectedKeyword
+                  ? isSelected
+                    ? 1
+                    : isRelated
+                      ? Math.max(zoomAlpha, 0.68)
+                      : isCategoryNode
+                        ? Math.max(zoomAlpha, 0.54)
+                        : zoomAlpha
+                  : zoomAlpha;
+            const isInteractable =
+              isCategoryNode ||
+              (graphDetailLevel === "overview" &&
+                (isSelectedCategoryKeyword || isRelated || isSelected)) ||
+              graphDetailLevel === "detail" ||
+              (graphDetailLevel === "category" &&
+                (isSelectedCategoryKeyword || isRelated || isSelected));
+            const projectedNode = projectGraphPoint(node);
 
             return (
               <button
-                key={node.keyword}
+                key={node.id || node.keyword}
                 className={`density-node density-node-${node.source} ${
                   isSelected ? "is-selected" : isRelated ? "is-related" : "is-muted"
-                }`}
+                } ${isNeighborCategory ? "is-neighbor-category" : ""} ${
+                  isNeighborhoodNode ? "is-in-neighborhood" : "is-out-neighborhood"
+                } ${!isInteractable ? "is-hidden-by-zoom" : ""}`}
                 type="button"
-                title={`${formatDisplayText(node.keyword)} · ${node.count} mentions · ${node.cluster}`}
+                title={
+                  isCategoryNode
+                    ? `${formatDisplayText(node.label)} · ${node.articleCount || 0}개 기사`
+                    : `${formatDisplayText(node.keyword)} · ${node.count}회 언급`
+                }
                 style={{
-                  left: `${node.x}%`,
-                  top: `${node.y}%`,
+                  left: `${projectedNode.x}%`,
+                  top: `${projectedNode.y}%`,
                   width: `${node.size}px`,
                   height: `${node.size}px`,
                   opacity: visibleAlpha,
+                  pointerEvents: isInteractable ? "auto" : "none",
+                  "--node-visual-size": `${node.size}px`,
                   "--node-hue": node.hue,
                 }}
                 onClick={() => {
+                  if (isCategoryNode) {
+                    selectGalaxy(node.category);
+                    return;
+                  }
+
+                  setFocusedNodeId(node.id);
+                  setGraphZoom((currentZoom) => Math.max(currentZoom, 1.36));
                   setKeyword(node.keyword);
-                  selectKeyword(node.keyword);
+                  selectKeyword(node.keyword, node.category || selectedCategory);
                 }}
               >
-                <span>{formatDisplayText(node.keyword)}</span>
+                <span className="node-tooltip">
+                  <strong>{formatDisplayText(node.label || node.keyword)}</strong>
+                  <small>
+                    {isCategoryNode
+                      ? `기사 ${node.articleCount || 0}개 · 키워드 ${node.keywordCount || 0}개`
+                      : `${getGalaxyDisplayName({ id: node.category })} · ${node.count || 0}회 언급`}
+                  </small>
+                </span>
               </button>
             );
           })}
         </div>
-
-        <div className="universe-stage" aria-hidden={viewMode !== "universe"}>
-          <div className="universe-orbits" />
-          {themedGalaxies.map((galaxy) => {
-            const isSelectedGalaxy = selectedCategory === galaxy.id;
-            const mentionScale = Math.min(
-              1.4,
-              0.74 + Math.sqrt(galaxy.totalMentions || 1) / 28
-            );
-
-            return (
-              <button
-                key={galaxy.id}
-                className={`galaxy-node ${
-                  isSelectedGalaxy ? "is-selected" : ""
-                }`}
-                type="button"
-                title={`${galaxy.name} · ${galaxy.articleCount} articles · Top keyword ${formatDisplayText(galaxy.topKeyword || "Pending")}`}
-                style={{
-                  left: `${galaxy.x}%`,
-                  top: `${galaxy.y}%`,
-                  width: `${86 * galaxy.scale * mentionScale}px`,
-                  height: `${86 * galaxy.scale * mentionScale}px`,
-                  "--galaxy-node-color": galaxy.color,
-                }}
-                onClick={() => selectGalaxy(galaxy.id)}
-              >
-                <span>{galaxy.name}</span>
-                <strong>{formatDisplayText(galaxy.topKeyword || "-")}</strong>
-                <small>{galaxy.articleCount} articles</small>
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          className="universe-toggle"
-          type="button"
-          onClick={viewMode === "universe" ? () => {
-            setViewMode("inside");
-            setGraphZoom(1);
-          } : showUniverse}
-        >
-          {viewMode === "universe" ? "Enter Galaxy" : "All Galaxies"}
-        </button>
 
         <header className="app-header">
           <div>
-            <p className="eyebrow">Current Galaxy</p>
-            <h1>{selectedGalaxy?.name || "Society"} Galaxy</h1>
+            <p className="eyebrow">현재 분야</p>
+            <h1>{getGalaxyDisplayName(selectedGalaxy)}</h1>
             <p className="subtitle">
-              {selectedGalaxy?.description || "Waiting for signals in this field."}
+              {getGalaxyDescription(selectedGalaxy)}
             </p>
-            <div className="galaxy-brief" aria-label="Selected galaxy summary">
+            <div className="galaxy-brief" aria-label="선택한 분야 요약">
               <span>
                 <strong>{formatDisplayText(selectedGalaxy?.topKeyword || "-")}</strong>
-                Top keyword
+                주요 키워드
               </span>
               <span>
                 <strong>{selectedGalaxy?.totalMentions || 0}</strong>
-                {selectedGalaxy?.signalLabel || "Signals"}
+                언급량
               </span>
               <span>
                 <strong>{selectedGalaxy?.keywordCount || 0}</strong>
-                Observed keywords
+                관측 키워드
               </span>
             </div>
           </div>
           <div className="header-actions">
             <form className="search-form" onSubmit={handleSearch}>
-              <label htmlFor="keyword-search">Search</label>
+              <label htmlFor="keyword-search">검색</label>
               <input
                 id="keyword-search"
                 type="text"
                 value={formatDisplayText(keyword)}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="Search keyword"
+                placeholder="키워드 검색"
               />
-              <button type="submit" aria-label="Analyze keyword">⌕</button>
+              <button type="submit" aria-label="키워드 분석">⌕</button>
             </form>
           </div>
         </header>
 
-        <section className="control-strip" aria-label="Choose news galaxy">
+        <section className="control-strip" aria-label="뉴스 분야 선택">
           <div className="galaxy-switcher">
             {themedGalaxies.map((galaxy) => (
               <button
@@ -969,21 +968,21 @@ function App() {
                 onClick={() => selectGalaxy(galaxy.id)}
               >
                 <i />
-                <span>{galaxy.name}</span>
+                <span>{getGalaxyDisplayName(galaxy)}</span>
                 <strong>{galaxy.articleCount}</strong>
               </button>
             ))}
           </div>
           <p className="refresh-note">
-            {latestDate === "-" ? "Waiting for data" : `Updated ${latestDate}`}
+            {latestDate === "-" ? "데이터 대기 중" : `${latestDate} 업데이트`}
           </p>
         </section>
 
       <section className="insight-grid">
         <aside className="panel trend-panel">
           <div className="panel-heading">
-            <span>Source Nodes</span>
-            <h2>{selectedGalaxy?.name || "Society"} Keywords</h2>
+            <span>소스 노드</span>
+            <h2>{getGalaxyDisplayName(selectedGalaxy)} 키워드</h2>
           </div>
 
           <div className="trend-list">
@@ -1010,161 +1009,13 @@ function App() {
           </div>
         </aside>
 
-        <section className="map-panel">
-          <div className="map-toolbar">
-            <div>
-              <span>Relationship Map</span>
-              <strong>{formatDisplayText(selectedKeyword) || "Select keyword"}</strong>
-            </div>
-            <div className="map-legend" aria-label="Network legend">
-              <span><i className="legend-line" /> Co-occurrence</span>
-              <span><i className="legend-node" /> Related keyword</span>
-            </div>
-          </div>
-
-          <svg
-            className="relation-lines"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            {relationNodes.map((node) => (
-              <line
-                key={`${node.keyword}-line`}
-                x1="50"
-                y1="46"
-                x2={node.x}
-                y2={node.y}
-                strokeWidth={0.2 + node.strength * 0.85}
-                opacity={0.2 + node.strength * 0.58}
-              />
-            ))}
-            {relationNodes.slice(0, 12).map((node, index) => {
-              const nextNode = relationNodes[(index + 3) % relationNodes.length];
-
-              if (!nextNode || index % 2 !== 0) {
-                return null;
-              }
-
-              return (
-                <line
-                  key={`${node.keyword}-${nextNode.keyword}-mesh`}
-                  x1={node.x}
-                  y1={node.y}
-                  x2={nextNode.x}
-                  y2={nextNode.y}
-                  className="mesh-line"
-                  strokeWidth={0.12 + Math.min(node.strength, nextNode.strength) * 0.32}
-                />
-              );
-            })}
-          </svg>
-
-          <div className="ambient-dots" aria-hidden="true">
-            {AMBIENT_DOTS.map((dot) => (
-              <i
-                key={dot.id}
-                style={{
-                  left: `${dot.x}%`,
-                  top: `${dot.y}%`,
-                  width: `${dot.size}px`,
-                  height: `${dot.size}px`,
-                  opacity: dot.alpha,
-                }}
-              />
-            ))}
-          </div>
-
-          <button
-            className="focus-dot"
-            type="button"
-            title={`${formatDisplayText(selectedKeyword) || "Select keyword"} · ${selectedMentions} mentions`}
-          >
-            <span>{formatDisplayText(selectedKeyword) || "Select keyword"}</span>
-            <strong>{selectedMentions}</strong>
-          </button>
-
-          {relationNodes.length > 0 ? (
-            relationNodes.map((relatedKeyword) => (
-              <button
-                key={relatedKeyword.keyword}
-                className="related-node"
-                type="button"
-                title={`${formatDisplayText(relatedKeyword.keyword)} · ${relatedKeyword.count} co-occurrences`}
-                style={{
-                  left: `${relatedKeyword.x}%`,
-                  top: `${relatedKeyword.y}%`,
-                  width: `${relatedKeyword.size}px`,
-                  height: `${relatedKeyword.size}px`,
-                  "--relation-alpha": relatedKeyword.alpha,
-                }}
-                onClick={() => {
-                  setKeyword(relatedKeyword.keyword);
-                  selectKeyword(relatedKeyword.keyword);
-                }}
-              >
-                <span>{formatDisplayText(relatedKeyword.keyword)}</span>
-                <strong>{relatedKeyword.count}</strong>
-              </button>
-            ))
-          ) : (
-            <p className="network-empty">
-              No keywords have appeared together in the same article yet.
-            </p>
-          )}
-
-          <article className="relation-summary">
-            <span>Strongest Link</span>
-            <strong>{formatDisplayText(strongestRelation?.keyword || "-")}</strong>
-            <small>
-              {strongestRelation
-                ? `${strongestRelation.count} co-occurrences`
-                : "No relationship"}
-            </small>
-          </article>
-
-          <aside className="relation-inspector">
-            <div>
-              <span>Avg. strength</span>
-              <strong>{avgRelationStrength}</strong>
-            </div>
-            <div className="relation-bars">
-              {relationBuckets.length > 0 ? (
-                relationBuckets.map((item) => (
-                  <button
-                    key={item.keyword}
-                    type="button"
-                    onClick={() => {
-                      setKeyword(item.keyword);
-                      selectKeyword(item.keyword);
-                    }}
-                  >
-                    <span>{formatDisplayText(item.keyword)}</span>
-                    <i
-                      style={{
-                        width: `${Math.max(
-                          12,
-                          (item.count / maxRelatedCount) * 100
-                        )}%`,
-                      }}
-                    />
-                    <strong>{item.count}</strong>
-                  </button>
-                ))
-              ) : (
-                <small>No relationship strength data</small>
-              )}
-            </div>
-          </aside>
-        </section>
-
         <section className="panel chart-panel">
           <div className="panel-heading detail-heading">
             <div>
-              <span>Detail View</span>
-              <h2>{formatDisplayText(selectedKeyword) || "Keyword"} Mention Trend</h2>
+              <span>상세 보기</span>
+              <h2>{formatDisplayText(selectedKeyword) || "키워드"} 언급 추이</h2>
             </div>
-            <div className="time-filter" aria-label="Time range filter">
+            <div className="time-filter" aria-label="기간 필터">
               {FILTERS.map((filter) => (
                 <button
                   key={filter.value}
@@ -1215,7 +1066,7 @@ function App() {
               </ResponsiveContainer>
             ) : (
               <p className="empty-message">
-                No detail data for the selected keyword.
+                선택한 키워드의 상세 데이터가 없습니다.
               </p>
             )}
           </div>
@@ -1226,8 +1077,8 @@ function App() {
             }`}
           >
             <div className="panel-heading compact">
-              <span>Evidence</span>
-              <h2>Related Articles</h2>
+              <span>근거</span>
+              <h2>연관 기사</h2>
             </div>
             {articles.length > 0 ? (
               <>
@@ -1240,7 +1091,7 @@ function App() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <strong>{formatDisplayText(article.title)}</strong>
+                    <strong>{article.title}</strong>
                     <span>
                       {article.source} · {article.publishedAt}
                     </span>
@@ -1255,7 +1106,7 @@ function App() {
                     className="article-expand-button"
                     type="button"
                     aria-label={
-                      articlesExpanded ? "Collapse related articles" : "Expand related articles"
+                      articlesExpanded ? "연관 기사 접기" : "연관 기사 펼치기"
                     }
                     onClick={() => setArticlesExpanded((expanded) => !expanded)}
                   >
@@ -1264,7 +1115,7 @@ function App() {
                 )}
               </>
             ) : (
-              <p className="empty-message">No related article evidence.</p>
+              <p className="empty-message">연관 기사 근거가 없습니다.</p>
             )}
           </div>
         </section>

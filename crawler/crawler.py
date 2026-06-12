@@ -1,25 +1,34 @@
 import os
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import feedparser
 import certifi
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
+try:
+    from kiwipiepy import Kiwi
+except ImportError:
+    Kiwi = None
+
 load_dotenv("../backend/.env")
 
 mongo_uri = os.getenv("MONGO_URI")
+KST = ZoneInfo("Asia/Seoul")
 
-if not mongo_uri:
-    raise SystemExit(
-        "MONGO_URI 환경변수가 비어 있습니다. "
-        "GitHub Actions Secrets에 MONGO_URI를 등록해야 합니다."
-    )
 
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-db = client[os.getenv("MONGO_DB", "test")]
+def get_db():
+    if not mongo_uri:
+        raise SystemExit(
+            "MONGO_URI 환경변수가 비어 있습니다. "
+            "GitHub Actions Secrets에 MONGO_URI를 등록해야 합니다."
+        )
+
+    client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
+    return client[os.getenv("MONGO_DB", "test")]
 
 CATEGORIES = {
     "society": {
@@ -148,26 +157,342 @@ STOPWORDS = {
     "오후",
     "무슨",
     "왜",
+    "따르면",
+    "com",
+    "co",
+    "kr",
+    "net",
+    "www",
+    "daum",
+    "nate",
+    "chosun",
+    "Chosunbiz",
+    "연합뉴스",
+    "연합뉴스TV",
+    "조선일보",
+    "조선비즈",
+    "한국경제",
+    "매일경제",
+    "한겨레",
+    "경향신문",
+    "동아일보",
+    "머니투데이",
+    "아시아경제",
+    "파이낸셜뉴스",
+    "헬스조선",
+    "지디넷코리아",
+    "이투데이",
+    "데일리안",
+    "MBC",
+    "KBS",
+    "SBS",
+    "JTBC",
+    "YTN",
+    "MBN",
+    "채널A",
+    "TV조선",
+    "서울신문",
+    "국민일보",
+    "세계일보",
+    "문화일보",
+    "중앙일보",
+    "한국일보",
+    "서울경제",
+    "헤럴드경제",
+    "이데일리",
+    "뉴스1",
+    "뉴시스",
+    "노컷뉴스",
+    "프레시안",
+    "오마이뉴스",
+    "미디어오늘",
+    "전자신문",
+    "블로터",
+    "ZDNet",
+    "ZDNetKorea",
+    "지디넷",
+    "아이뉴스24",
+    "디지털데일리",
+    "테크M",
+    "코인데스크",
+    "토큰포스트",
+    "연합인포맥스",
+    "비즈워치",
+    "더벨",
+    "인베스트조선",
+    "스포츠경향",
+    "스포츠조선",
+    "마이데일리",
+    "스타뉴스",
+    "starnews",
+    "korea.com",
+    "v.daum.net",
+    "tokenpost",
+    "TokenPost",
+    "Chosunbiz",
+    "데일리한국",
+    "헬로디디",
+    "발표",
+    "발생",
+    "공개",
+    "출시",
+    "전망",
+    "논란",
+    "확인",
+    "추진",
+    "검토",
+    "예정",
+    "진행",
 }
 
+PARTICLE_SUFFIXES = (
+    "으로부터",
+    "에게서",
+    "에서는",
+    "에서",
+    "에게",
+    "으로",
+    "라고",
+    "이라며",
+    "라며",
+    "이며",
+    "이고",
+    "인데",
+    "에는",
+    "부터",
+    "까지",
+    "보다",
+    "처럼",
+    "만큼",
+    "조차",
+    "마저",
+    "이나",
+    "거나",
+    "하고",
+    "와",
+    "과",
+    "은",
+    "는",
+    "이",
+    "가",
+    "을",
+    "를",
+    "에",
+    "의",
+    "도",
+    "만",
+    "로",
+)
 
-def extract_keywords(title):
-    words = re.findall(r"[가-힣A-Za-z0-9]+", title)
+VERB_OR_ENDING_SUFFIXES = (
+    "했습니다",
+    "합니다",
+    "했다",
+    "한다",
+    "됐다",
+    "된다",
+    "했다가",
+    "한다며",
+    "된다며",
+    "했다고",
+    "한다고",
+    "됐다고",
+    "된다고",
+    "하며",
+    "하면서",
+    "하고",
+    "하는",
+    "되는",
+    "했다는",
+    "한다는",
+    "된다는",
+    "밝혔다",
+    "밝혀",
+    "발표했다",
+    "공개했다",
+    "출시했다",
+    "전했다",
+    "말했다",
+    "보인다",
+    "나왔다",
+    "올랐다",
+    "내렸다",
+    "급락",
+    "급등",
+)
+
+DOMAIN_PATTERN = re.compile(
+    r"^(?:[a-z0-9-]+\.)+(?:com|net|co\.kr|kr|org|io)$",
+    re.IGNORECASE,
+)
+DOMAIN_IN_TEXT_PATTERN = re.compile(
+    r"\b(?:[a-z0-9-]+\.)+(?:com|net|co\.kr|kr|org|io)\b",
+    re.IGNORECASE,
+)
+SOURCE_HINT_PATTERN = re.compile(
+    r"(?:일보|신문|비즈|투데이|데일리|타임스|경향|헤럴드|"
+    r"연합|인포맥스|포스트|스타뉴스|starnews|chosun|daum|nate|tokenpost|zdnet)",
+    re.IGNORECASE,
+)
+SOURCE_PHRASES = tuple(
+    sorted(
+        {
+            "연합뉴스TV",
+            "연합뉴스",
+            "조선일보",
+            "조선비즈",
+            "Chosunbiz",
+            "한국경제",
+            "매일경제",
+            "한겨레",
+            "경향신문",
+            "동아일보",
+            "머니투데이",
+            "아시아경제",
+            "파이낸셜뉴스",
+            "헬스조선",
+            "지디넷코리아",
+            "이투데이",
+            "데일리안",
+            "서울신문",
+            "국민일보",
+            "세계일보",
+            "문화일보",
+            "중앙일보",
+            "한국일보",
+            "서울경제",
+            "헤럴드경제",
+            "이데일리",
+            "뉴스1",
+            "뉴시스",
+            "노컷뉴스",
+            "프레시안",
+            "오마이뉴스",
+            "미디어오늘",
+            "전자신문",
+            "ZDNetKorea",
+            "ZDNet",
+            "지디넷",
+            "아이뉴스24",
+            "디지털데일리",
+            "테크M",
+            "코인데스크",
+            "토큰포스트",
+            "연합인포맥스",
+            "비즈워치",
+            "더벨",
+            "인베스트조선",
+            "스포츠경향",
+            "스포츠조선",
+            "마이데일리",
+            "스타뉴스",
+            "starnews",
+            "korea.com",
+            "v.daum.net",
+            "tokenpost",
+            "TokenPost",
+            "데일리한국",
+            "헬로디디",
+        },
+        key=len,
+        reverse=True,
+    )
+)
+
+NOUN_TAGS = {"NNG", "NNP", "NNB", "NR", "SL"}
+kiwi = Kiwi() if Kiwi else None
+
+
+def strip_particle(word):
+    normalized = word
+
+    for _ in range(2):
+        for suffix in PARTICLE_SUFFIXES:
+            if normalized.endswith(suffix) and len(normalized) > len(suffix) + 1:
+                normalized = normalized[: -len(suffix)]
+                break
+        else:
+            break
+
+    return normalized
+
+
+def remove_source_terms(text):
+    cleaned = DOMAIN_IN_TEXT_PATTERN.sub(" ", text)
+
+    for phrase in SOURCE_PHRASES:
+        cleaned = re.sub(re.escape(phrase), " ", cleaned, flags=re.IGNORECASE)
+
+    return cleaned
+
+
+def is_noun_candidate(word):
+    normalized = word.strip("[](){}<>\"'“”‘’·….,:;!?")
+
+    if len(word) < 2:
+        return False
+    if normalized in STOPWORDS or normalized.lower() in STOPWORDS:
+        return False
+    if DOMAIN_PATTERN.fullmatch(normalized):
+        return False
+    if SOURCE_HINT_PATTERN.search(normalized):
+        return False
+    if re.fullmatch(r"\d+[가-힣A-Za-z]*", normalized):
+        return False
+    if any(normalized.endswith(suffix) for suffix in VERB_OR_ENDING_SUFFIXES):
+        return False
+    if (
+        re.fullmatch(r"[A-Za-z]+", normalized)
+        and len(normalized) < 3
+        and not normalized.isupper()
+    ):
+        return False
+
+    return True
+
+
+def extract_keywords_with_kiwi(title):
+    cleaned_title = remove_source_terms(title)
+    keywords = []
+
+    for token in kiwi.tokenize(cleaned_title):
+        keyword = token.form.strip()
+
+        if token.tag not in NOUN_TAGS:
+            continue
+        if not is_noun_candidate(keyword):
+            continue
+
+        keywords.append(keyword)
+
+    return keywords
+
+
+def extract_keywords_with_rules(title):
+    cleaned_title = remove_source_terms(title)
+    words = re.findall(r"[가-힣A-Za-z0-9]+", cleaned_title)
     keywords = []
 
     for word in words:
-        word = word.strip()
-        if len(word) < 2:
+        keyword = strip_particle(word.strip())
+
+        if not is_noun_candidate(keyword):
             continue
-        if re.fullmatch(r"\d+[가-힣A-Za-z]*", word):
-            continue
-        if word.endswith(("했다", "한다", "됐다", "된다", "하고", "하며", "까지", "부터")):
-            continue
-        if word in STOPWORDS:
-            continue
-        keywords.append(word)
+
+        keywords.append(keyword)
 
     return keywords
+
+
+def extract_keywords(title):
+    if kiwi:
+        return extract_keywords_with_kiwi(title)
+
+    return extract_keywords_with_rules(title)
+
+
+def get_keyword_extractor_name():
+    return "kiwipiepy" if kiwi else "rule-based"
 
 
 def get_entry_date(entry, fallback_date):
@@ -176,18 +501,26 @@ def get_entry_date(entry, fallback_date):
     if not parsed_date:
         return fallback_date
 
-    return datetime(*parsed_date[:6]).strftime("%Y-%m-%d")
+    return (
+        datetime(*parsed_date[:6], tzinfo=timezone.utc)
+        .astimezone(KST)
+        .strftime("%Y-%m-%d")
+    )
 
 
 def main():
-    today = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
+    db = get_db()
+    now = datetime.now(KST)
+    today = now.strftime("%Y-%m-%d")
+    start_date = (now - timedelta(days=6)).strftime("%Y-%m-%d")
     counters_by_category_date = defaultdict(lambda: defaultdict(Counter))
     source_counts = defaultdict(int)
     category_counts = defaultdict(int)
     seen_urls = set()
     article_count = 0
     touched_category_dates = set()
+
+    print(f"키워드 추출 방식: {get_keyword_extractor_name()}")
 
     for category, category_config in CATEGORIES.items():
         category_label = category_config["label"]

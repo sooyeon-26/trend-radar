@@ -3,15 +3,18 @@ name: Daily trend crawl
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"
+    # 09:17 KST. Avoid the top of the hour because GitHub scheduled runs can be delayed or dropped during peak load.
+    - cron: "17 0 * * *"
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     env:
       MONGO_URI: ${{ secrets.MONGO_URI }}
       MONGO_DB: ${{ secrets.MONGO_DB || 'test' }}
+      TZ: Asia/Seoul
 
     steps:
       - name: Checkout
@@ -34,4 +37,35 @@ jobs:
 
       - name: Run crawler
         working-directory: crawler
-        run: python crawler.py
+        run: python -u crawler.py
+
+      - name: Verify today's data
+        working-directory: crawler
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          import certifi
+          from pymongo import MongoClient
+
+          today = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
+          client = MongoClient(os.environ["MONGO_URI"], tlsCAFile=certifi.where())
+          db = client[os.getenv("MONGO_DB", "test")]
+          article_count = db.articles.count_documents({"publishedAt": today})
+          trend_count = db.trends.count_documents({"date": today})
+
+          print(f"today={today}")
+          print(f"articles={article_count}")
+          print(f"trends={trend_count}")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Daily crawl verification\n\n")
+              summary.write(f"- Date: `{today}`\n")
+              summary.write(f"- Articles: `{article_count}`\n")
+              summary.write(f"- Trends: `{trend_count}`\n")
+
+          if article_count == 0 or trend_count == 0:
+              raise SystemExit("Today's crawl produced no stored articles or trends.")
+          PY
