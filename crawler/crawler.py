@@ -513,6 +513,8 @@ def main():
     now = datetime.now(KST)
     today = now.strftime("%Y-%m-%d")
     start_date = (now - timedelta(days=6)).strftime("%Y-%m-%d")
+    deleted_articles = db.articles.delete_many({"publishedAt": {"$lt": start_date}})
+    deleted_trends = db.trends.delete_many({"date": {"$lt": start_date}})
     counters_by_category_date = defaultdict(lambda: defaultdict(Counter))
     source_counts = defaultdict(int)
     category_counts = defaultdict(int)
@@ -585,6 +587,9 @@ def main():
             )
 
     print("크롤링 완료")
+    print(f"보관 기간 시작일: {start_date}")
+    print(f"삭제된 오래된 기사 수: {deleted_articles.deleted_count}")
+    print(f"삭제된 오래된 트렌드 수: {deleted_trends.deleted_count}")
     print(f"수집 기사 수: {article_count}")
     print("출처별 수집량:")
     for source, count in sorted(source_counts.items()):
