@@ -68,7 +68,7 @@ PORT=4000
 cd crawler
 python3 -m venv venv
 source venv/bin/activate
-pip install requests beautifulsoup4 pymongo python-dotenv feedparser
+pip install requests beautifulsoup4 pymongo python-dotenv feedparser certifi kiwipiepy
 python crawler.py
 ```
 

@@ -30,6 +30,92 @@ def get_db():
     client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
     return client[os.getenv("MONGO_DB", "test")]
 
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def get_source_count():
+    return sum(
+        len(rss_urls)
+        for category_config in CATEGORIES.values()
+        for rss_urls in category_config["feeds"].values()
+    )
+
+
+def start_pipeline_run(db, source_count):
+    result = db.pipeline_runs.insert_one(
+        {
+            "status": "collecting",
+            "startedAt": utc_now(),
+            "completedAt": None,
+            "lastCollectedAt": None,
+            "articleCount": 0,
+            "keywordCount": 0,
+            "categoryCount": 0,
+            "sourceCount": source_count,
+            "failedSourceCount": 0,
+            "errorMessage": None,
+        }
+    )
+
+    return result.inserted_id
+
+
+def finish_pipeline_run(
+    db,
+    pipeline_run_id,
+    status,
+    article_count,
+    keyword_count,
+    category_count,
+    source_count,
+    failed_source_count,
+    error_message=None,
+):
+    completed_at = utc_now()
+
+    db.pipeline_runs.update_one(
+        {"_id": pipeline_run_id},
+        {
+            "$set": {
+                "status": status,
+                "completedAt": completed_at,
+                "lastCollectedAt": completed_at,
+                "articleCount": article_count,
+                "keywordCount": keyword_count,
+                "categoryCount": category_count,
+                "sourceCount": source_count,
+                "failedSourceCount": failed_source_count,
+                "errorMessage": error_message,
+            }
+        },
+    )
+
+
+def mark_latest_pipeline_failed(error):
+    try:
+        db = get_db()
+        completed_at = utc_now()
+        latest_run = db.pipeline_runs.find_one(
+            {"status": "collecting"}, sort=[("startedAt", -1)]
+        )
+
+        if latest_run:
+            db.pipeline_runs.update_one(
+                {"_id": latest_run["_id"]},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "completedAt": completed_at,
+                        "failedSourceCount": latest_run.get("failedSourceCount", 0),
+                        "errorMessage": str(error),
+                    }
+                },
+            )
+    except Exception as update_error:
+        print(f"파이프라인 실패 상태 저장 실패: {update_error}")
+
 CATEGORIES = {
     "society": {
         "label": "사회",
@@ -510,6 +596,8 @@ def get_entry_date(entry, fallback_date):
 
 def main():
     db = get_db()
+    source_count = get_source_count()
+    pipeline_run_id = start_pipeline_run(db, source_count)
     now = datetime.now(KST)
     today = now.strftime("%Y-%m-%d")
     start_date = (now - timedelta(days=6)).strftime("%Y-%m-%d")
@@ -520,6 +608,9 @@ def main():
     category_counts = defaultdict(int)
     seen_urls = set()
     article_count = 0
+    trend_keyword_count = 0
+    failed_source_count = 0
+    feed_errors = []
     touched_category_dates = set()
 
     print(f"키워드 추출 방식: {get_keyword_extractor_name()}")
@@ -529,7 +620,22 @@ def main():
 
         for source, rss_urls in category_config["feeds"].items():
             for rss_url in rss_urls:
-                feed = feedparser.parse(rss_url)
+                try:
+                    feed = feedparser.parse(rss_url)
+                except Exception as error:
+                    failed_source_count += 1
+                    feed_errors.append(f"{source}: {error}")
+                    continue
+
+                if getattr(feed, "bozo", False) and not feed.entries:
+                    failed_source_count += 1
+                    feed_errors.append(f"{source}: RSS 파싱 실패")
+                    continue
+
+                if not feed.entries:
+                    failed_source_count += 1
+                    feed_errors.append(f"{source}: 수집된 RSS 항목 없음")
+                    continue
 
                 for entry in feed.entries:
                     title = entry.get("title", "")
@@ -572,6 +678,7 @@ def main():
         db.trends.delete_many({"date": article_date, "category": category})
 
         for keyword, count in counters_by_category_date[category][article_date].most_common(100):
+            trend_keyword_count += 1
             db.trends.update_one(
                 {"keyword": keyword, "date": article_date, "category": category},
                 {
@@ -586,11 +693,28 @@ def main():
                 upsert=True,
             )
 
+    pipeline_status = (
+        "completed" if article_count > 0 and trend_keyword_count > 0 else "empty"
+    )
+    finish_pipeline_run(
+        db=db,
+        pipeline_run_id=pipeline_run_id,
+        status=pipeline_status,
+        article_count=article_count,
+        keyword_count=trend_keyword_count,
+        category_count=len({category for category, _ in touched_category_dates}),
+        source_count=source_count,
+        failed_source_count=failed_source_count,
+        error_message="; ".join(feed_errors[:3]) if feed_errors else None,
+    )
+
     print("크롤링 완료")
     print(f"보관 기간 시작일: {start_date}")
     print(f"삭제된 오래된 기사 수: {deleted_articles.deleted_count}")
     print(f"삭제된 오래된 트렌드 수: {deleted_trends.deleted_count}")
     print(f"수집 기사 수: {article_count}")
+    print(f"수집 키워드 수: {trend_keyword_count}")
+    print(f"실패 RSS 수: {failed_source_count}")
     print("출처별 수집량:")
     for source, count in sorted(source_counts.items()):
         print(source, count)
@@ -607,4 +731,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        mark_latest_pipeline_failed(error)
+        raise

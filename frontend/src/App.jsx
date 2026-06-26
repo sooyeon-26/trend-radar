@@ -9,6 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import IntroScreen from "./IntroScreen";
+import PipelineStatus from "./PipelineStatus";
 import "./App.css";
 
 const API_BASE_URL = "http://localhost:4000/api/trends";
@@ -165,16 +167,21 @@ const CATEGORY_DESCRIPTIONS = {
   health: "의료, 질병, 건강, 돌봄 관련 신호를 모읍니다.",
 };
 
-const UNIVERSE_POSITIONS = {
-  society: { x: 43, y: 48 },
-  politics: { x: 28, y: 33 },
-  economy: { x: 66, y: 31 },
-  technology: { x: 35, y: 68 },
-  world: { x: 69, y: 65 },
-  culture: { x: 20, y: 52 },
-  sports: { x: 79, y: 47 },
-  science: { x: 53, y: 78 },
-  health: { x: 51, y: 19 },
+const CATEGORY_ALIASES = {
+  tech: "technology",
+  it: "technology",
+};
+
+const CATEGORY_CLUSTER_CENTERS = {
+  politics: { x: 30, y: 30 },
+  economy: { x: 70, y: 31 },
+  society: { x: 31, y: 67 },
+  technology: { x: 67, y: 66 },
+  science: { x: 74, y: 72 },
+  world: { x: 50, y: 22 },
+  culture: { x: 43, y: 80 },
+  sports: { x: 57, y: 80 },
+  health: { x: 38, y: 72 },
 };
 
 function hexToRgba(hex, alpha) {
@@ -204,21 +211,82 @@ function getGalaxyDescription(galaxy) {
   return CATEGORY_DESCRIPTIONS[galaxy?.id] || "이 분야의 신호를 기다리는 중입니다.";
 }
 
-const DENSITY_DOTS = Array.from({ length: 820 }, (_, index) => {
-  const angle = index * 2.399963 + Math.sin(index * 0.37) * 0.6;
-  const radius =
-    Math.sqrt(((index * 37) % 821) / 821) *
-    (39 + Math.sin(index * 0.19) * 13);
-  const satellite = index % 23 === 0 ? 1.18 : 1;
+function normalizeCategoryId(category) {
+  const normalized = String(category || DEFAULT_CATEGORY).toLowerCase();
+
+  return CATEGORY_ALIASES[normalized] || normalized || DEFAULT_CATEGORY;
+}
+
+function getClusterCenter(category) {
+  return (
+    CATEGORY_CLUSTER_CENTERS[normalizeCategoryId(category)] ||
+    CATEGORY_CLUSTER_CENTERS[DEFAULT_CATEGORY]
+  );
+}
+
+function getWeightedClusterCenter(categories) {
+  const validCategories = categories?.length
+    ? categories
+    : [{ id: DEFAULT_CATEGORY, count: 1 }];
+  const totalCategoryCount =
+    validCategories.reduce(
+      (sum, category) => sum + Math.max(category.count || 0, 1),
+      0
+    ) || 1;
+
+  return validCategories.reduce(
+    (position, category) => {
+      const center = getClusterCenter(category.id);
+      const weight = Math.max(category.count || 0, 1) / totalCategoryCount;
+
+      return {
+        x: position.x + center.x * weight,
+        y: position.y + center.y * weight,
+      };
+    },
+    { x: 0, y: 0 }
+  );
+}
+
+function getKeywordClusterPosition({
+  categories,
+  categoryIndex,
+  globalIndex,
+  scale = 0.9,
+}) {
+  const center = getWeightedClusterCenter(categories);
+  const angle =
+    categoryIndex * 2.399963 +
+    globalIndex * 0.17 +
+    Math.sin(categoryIndex * 0.73) * 0.18;
+  const radius = 3.8 + Math.sqrt(categoryIndex + 1) * (2.5 + scale * 0.9);
+  const sharedCategoryPull = categories.length > 1 ? 0.74 : 1;
+  const occasionalOuterArm = categoryIndex % 8 === 0 ? 1.22 : 1;
 
   return {
-    id: index,
-    x: 50 + Math.cos(angle) * radius * 1.24 * satellite,
-    y: 51 + Math.sin(angle) * radius * 0.9 * satellite,
-    size: 1 + ((index * 13) % 5) * 0.36,
-    alpha: 0.08 + ((index * 17) % 9) * 0.028,
+    x: center.x + Math.cos(angle) * radius * 1.14 * occasionalOuterArm,
+    y: center.y + Math.sin(angle) * radius * 0.82 * sharedCategoryPull,
   };
-});
+}
+
+const DENSITY_DOTS = Object.entries(CATEGORY_CLUSTER_CENTERS).flatMap(
+  ([category, center], categoryIndex) =>
+    Array.from({ length: 54 }, (_, dotIndex) => {
+      const index = categoryIndex * 54 + dotIndex;
+      const angle = dotIndex * 2.399963 + categoryIndex * 0.61;
+      const radius =
+        Math.sqrt(((dotIndex * 37) % 55) / 55) *
+        (7.5 + (categoryIndex % 3) * 1.8);
+
+      return {
+        id: `${category}-${dotIndex}`,
+        x: center.x + Math.cos(angle) * radius * 1.22,
+        y: center.y + Math.sin(angle) * radius * 0.86,
+        size: 0.9 + ((index * 13) % 5) * 0.26,
+        alpha: 0.035 + ((index * 17) % 8) * 0.014,
+      };
+    })
+);
 
 function App() {
   const [galaxies, setGalaxies] = useState([]);
@@ -237,6 +305,7 @@ function App() {
   const [graphZoom, setGraphZoom] = useState(getInitialGraphZoom);
   const [focusedNodeId, setFocusedNodeId] = useState(null);
   const [articlesExpanded, setArticlesExpanded] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
     fetchDashboard(range, selectedCategory);
@@ -428,17 +497,15 @@ function App() {
     );
     const categoryLayoutMap = new Map(
       themedGalaxies.map((galaxy) => {
-        const universePosition = UNIVERSE_POSITIONS[galaxy.id] || galaxy;
-        const x = 16 + (universePosition.x / 100) * 68;
-        const y = 10 + (universePosition.y / 100) * 78;
+        const clusterCenter = getClusterCenter(galaxy.id);
 
         return [
           galaxy.id,
           {
             ...galaxy,
             ...(categoryNodeMap.get(galaxy.id) || {}),
-            x,
-            y,
+            x: clusterCenter.x,
+            y: clusterCenter.y,
           },
         ];
       })
@@ -477,53 +544,32 @@ function App() {
       .filter((node) => node.type === "keyword")
       .map((node, index) => {
         const categories = node.categories?.length
-          ? node.categories
-          : [{ id: node.category || DEFAULT_CATEGORY, count: node.count || 1 }];
-        const totalCategoryCount = categories.reduce(
-          (sum, category) => sum + (category.count || 0),
-          0
-        ) || 1;
+          ? node.categories.map((category) => ({
+              ...category,
+              id: normalizeCategoryId(category.id),
+            }))
+          : [
+              {
+                id: normalizeCategoryId(node.category || node.mainCategory),
+                count: node.count || 1,
+              },
+            ];
         const primaryCategory =
-          categories[0]?.id || node.category || DEFAULT_CATEGORY;
+          normalizeCategoryId(
+            categories[0]?.id || node.category || node.mainCategory
+          );
         const primaryGalaxy =
           categoryLayoutMap.get(primaryCategory) ||
           categoryLayoutMap.get(DEFAULT_CATEGORY);
         const isShared = categories.length > 1;
-        let x = 0;
-        let y = 0;
-
-        if (isShared) {
-          categories.forEach((category) => {
-            const categoryGalaxy =
-              categoryLayoutMap.get(category.id) ||
-              categoryLayoutMap.get(DEFAULT_CATEGORY);
-            const weight = (category.count || 1) / totalCategoryCount;
-
-            x += categoryGalaxy.x * weight;
-            y += categoryGalaxy.y * weight;
-          });
-
-          const jitterAngle = index * 2.399963;
-          const jitter = 1.6 + (index % 7) * 0.36;
-
-          x += Math.cos(jitterAngle) * jitter;
-          y += Math.sin(jitterAngle) * jitter * 0.72;
-        } else {
-          const usedIndex = categoryKeywordIndex.get(primaryCategory) || 0;
-          categoryKeywordIndex.set(primaryCategory, usedIndex + 1);
-
-          const angle =
-            usedIndex * 2.399963 +
-            Math.sin(usedIndex * 0.73 + (primaryGalaxy.hue || 0)) * 0.18;
-          const radius =
-            4.8 +
-            Math.sqrt(usedIndex + 1) *
-              (2.7 + (primaryGalaxy.scale || 0.9) * 0.7);
-          const arm = usedIndex % 8 === 0 ? 1.28 : 1;
-
-          x = primaryGalaxy.x + Math.cos(angle) * radius * 1.16 * arm;
-          y = primaryGalaxy.y + Math.sin(angle) * radius * 0.82 * arm;
-        }
+        const usedIndex = categoryKeywordIndex.get(primaryCategory) || 0;
+        categoryKeywordIndex.set(primaryCategory, usedIndex + 1);
+        const position = getKeywordClusterPosition({
+          categories,
+          categoryIndex: usedIndex,
+          globalIndex: index,
+          scale: primaryGalaxy?.scale || 0.9,
+        });
 
         const strength = (node.count || 0) / maxUniverseCount;
 
@@ -532,8 +578,8 @@ function App() {
           id: node.id || `keyword:${node.keyword}`,
           keyword: node.keyword,
           label: node.label || node.keyword,
-          x: Math.min(81, Math.max(19, x)),
-          y: Math.min(88, Math.max(12, y)),
+          x: Math.min(84, Math.max(16, position.x)),
+          y: Math.min(88, Math.max(12, position.y)),
           size: isShared ? 4.4 + strength * 8.2 : 2.7 + strength * 7.4,
           alpha:
             selectedKeyword === node.keyword
@@ -709,6 +755,7 @@ function App() {
         "--galaxy-core-y": `${selectedGalaxy?.core?.y || 46}%`,
       }}
     >
+      {showIntro && <IntroScreen onEnter={() => setShowIntro(false)} />}
       <section
         className="density-hero density-hero-inside"
         aria-label="키워드 밀도 지도"
@@ -1007,6 +1054,8 @@ function App() {
               </button>
             ))}
           </div>
+
+          <PipelineStatus />
         </aside>
 
         <section className="panel chart-panel">
@@ -1070,6 +1119,38 @@ function App() {
               </p>
             )}
           </div>
+
+          <section className="co-keyword-panel" aria-label="함께 등장한 키워드">
+            <div className="panel-heading compact">
+              <span>맥락 신호</span>
+              <h2>함께 감지된 신호</h2>
+            </div>
+            {relatedKeywords.length > 0 ? (
+              <div className="co-keyword-list">
+                {relatedKeywords.slice(0, 8).map((item) => (
+                  <button
+                    key={item.keyword}
+                    className="co-keyword-chip"
+                    type="button"
+                    title={`${formatDisplayText(item.keyword)} · ${item.count}회 함께 등장`}
+                    onClick={() => {
+                      setFocusedNodeId(`keyword:${item.keyword}`);
+                      setGraphZoom((currentZoom) => Math.max(currentZoom, 1.36));
+                      setKeyword(item.keyword);
+                      selectKeyword(item.keyword);
+                    }}
+                  >
+                    <span>{formatDisplayText(item.keyword)}</span>
+                    <strong>{item.count}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-message">
+                함께 감지된 키워드가 아직 충분하지 않아요.
+              </p>
+            )}
+          </section>
 
           <div
             className={`article-list ${
