@@ -11,6 +11,8 @@ import {
 } from "recharts";
 import IntroScreen from "./IntroScreen";
 import PipelineStatus from "./PipelineStatus";
+import SignalSummaryCard from "./SignalSummaryCard";
+import { buildSignalAnalysis } from "./utils/signalAnalysis";
 import "./App.css";
 
 const API_BASE_URL = "http://localhost:4000/api/trends";
@@ -435,9 +437,17 @@ function App() {
     () => new Set(relatedKeywords.map((item) => item.keyword)),
     [relatedKeywords]
   );
+  const labeledKeywordSet = useMemo(
+    () =>
+      new Set([
+        selectedKeyword,
+        ...relatedKeywords.slice(0, 3).map((item) => item.keyword),
+      ]),
+    [selectedKeyword, relatedKeywords]
+  );
   const trendDeltaSummary = useMemo(() => {
     if (trendHistory.length < 2) {
-      return "추세 데이터 대기 중";
+      return "추이 비교를 위한 이전 데이터가 부족합니다";
     }
 
     const recentHistory = trendHistory.slice(-3);
@@ -449,6 +459,16 @@ function App() {
 
     return `최근 ${recentHistory.length}일간 ${signedDelta}회 ${direction}`;
   }, [trendHistory]);
+  const signalAnalysis = useMemo(
+    () =>
+      buildSignalAnalysis({
+        categoryName: getGalaxyDisplayName(selectedGalaxy),
+        trendHistory,
+        relatedArticleCount,
+        relatedKeywords,
+      }),
+    [selectedGalaxy, trendHistory, relatedArticleCount, relatedKeywords]
+  );
   const selectedNeighborhood = useMemo(() => {
     const categoryIds = new Set([selectedCategory]);
     const nodeIds = new Set([`category:${selectedCategory}`]);
@@ -868,6 +888,8 @@ function App() {
                 ? node.category === selectedCategory
                 : node.keyword === selectedKeyword;
             const isRelated = !isCategoryNode && relatedKeywordSet.has(node.keyword);
+            const showsNodeLabel =
+              !isCategoryNode && labeledKeywordSet.has(node.keyword);
             const isSelectedCategoryKeyword =
               !isCategoryNode && node.category === selectedCategory;
             const isNeighborhoodNode = selectedNeighborhood.nodeIds.has(node.id);
@@ -917,6 +939,12 @@ function App() {
               (graphDetailLevel === "category" &&
                 (isSelectedCategoryKeyword || isRelated || isSelected));
             const projectedNode = projectGraphPoint(node);
+            const visualSize =
+              !isCategoryNode && isSelected
+                ? node.size + 7
+                : !isCategoryNode && isRelated
+                  ? node.size + 2
+                  : node.size;
 
             return (
               <button
@@ -935,11 +963,11 @@ function App() {
                 style={{
                   left: `${projectedNode.x}%`,
                   top: `${projectedNode.y}%`,
-                  width: `${node.size}px`,
-                  height: `${node.size}px`,
+                  width: `${visualSize}px`,
+                  height: `${visualSize}px`,
                   opacity: visibleAlpha,
                   pointerEvents: isInteractable ? "auto" : "none",
-                  "--node-visual-size": `${node.size}px`,
+                  "--node-visual-size": `${visualSize}px`,
                   "--node-hue": node.hue,
                 }}
                 onClick={() => {
@@ -962,6 +990,11 @@ function App() {
                       : `${getGalaxyDisplayName({ id: node.category })} · ${node.count || 0}회 언급`}
                   </small>
                 </span>
+                {showsNodeLabel && (
+                  <span className="node-inline-label">
+                    {formatDisplayText(node.label || node.keyword)}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -977,15 +1010,15 @@ function App() {
             <div className="galaxy-brief" aria-label="선택한 분야 요약">
               <span>
                 <strong>{formatDisplayText(selectedGalaxy?.topKeyword || "-")}</strong>
-                주요 키워드
+                분야 대표 키워드
               </span>
               <span>
                 <strong>{selectedGalaxy?.totalMentions || 0}</strong>
-                언급량
+                분야 전체 언급량
               </span>
               <span>
                 <strong>{selectedGalaxy?.keywordCount || 0}</strong>
-                관측 키워드
+                관찰 키워드
               </span>
             </div>
           </div>
@@ -1077,6 +1110,7 @@ function App() {
               ))}
             </div>
           </div>
+          <SignalSummaryCard analysis={signalAnalysis} />
           <p className="trend-summary">{trendDeltaSummary}</p>
 
           <div className="chart-box">
@@ -1159,10 +1193,14 @@ function App() {
           >
             <div className="panel-heading compact">
               <span>근거</span>
-              <h2>연관 기사</h2>
+              <h2>주요 근거 기사</h2>
             </div>
             {articles.length > 0 ? (
               <>
+                <p className="evidence-note">
+                  근거 기사 {relatedArticleCount}건 중 주요 기사{" "}
+                  {visibleArticles.length}건
+                </p>
                 <div className="article-list-wrapper">
                   {visibleArticles.map((article) => (
                   <a

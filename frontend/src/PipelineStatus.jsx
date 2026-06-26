@@ -65,6 +65,26 @@ function formatLastCollected(value) {
   return `${day} ${time}`;
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat("ko-KR").format(value || 0);
+}
+
+function formatRssSummary(sourceCount = 0, failedSourceCount = 0) {
+  const normalSourceCount = Math.max(sourceCount - failedSourceCount, 0);
+
+  if (!sourceCount && !failedSourceCount) {
+    return "";
+  }
+
+  if (failedSourceCount > 0) {
+    return `RSS ${formatNumber(sourceCount)}개 중 ${formatNumber(
+      normalSourceCount
+    )}개 정상 수집`;
+  }
+
+  return `RSS ${formatNumber(sourceCount)}개 정상 수집`;
+}
+
 export default function PipelineStatus() {
   const [pipeline, setPipeline] = useState(null);
   const [loadState, setLoadState] = useState("loading");
@@ -107,12 +127,20 @@ export default function PipelineStatus() {
     () => formatLastCollected(pipeline?.lastCollectedAt),
     [pipeline?.lastCollectedAt]
   );
+  const statusLine =
+    normalizedStatus === "completed" || normalizedStatus === "failed"
+      ? `${statusCopy.title} · ${lastCollectedLabel}`
+      : statusCopy.title;
+  const rssSummary = formatRssSummary(
+    pipeline?.sourceCount || 0,
+    pipeline?.failedSourceCount || 0
+  );
 
   if (loadState === "loading") {
     return (
       <section className="pipeline-card pipeline-card-loading">
         <div className="pipeline-heading">
-          <span>데이터 파이프라인</span>
+          <span>수집·분석 상태</span>
           <strong>
             <i className="pipeline-dot pipeline-dot-collecting" />
             상태 확인 중
@@ -127,7 +155,7 @@ export default function PipelineStatus() {
     return (
       <section className="pipeline-card pipeline-card-failed">
         <div className="pipeline-heading">
-          <span>데이터 파이프라인</span>
+          <span>수집·분석 상태</span>
           <strong>
             <i className="pipeline-dot pipeline-dot-failed" />
             조회 실패
@@ -141,30 +169,24 @@ export default function PipelineStatus() {
   return (
     <section className={`pipeline-card pipeline-card-${normalizedStatus}`}>
       <div className="pipeline-heading">
-        <span>데이터 파이프라인</span>
+        <span>수집·분석 상태</span>
         <strong>
           <i className={`pipeline-dot pipeline-dot-${normalizedStatus}`} />
-          {statusCopy.title}
+          {statusLine}
         </strong>
       </div>
-      <p>
-        {normalizedStatus === "completed" || normalizedStatus === "failed"
-          ? `${statusCopy.detail} ${lastCollectedLabel}`
-          : statusCopy.detail}
-      </p>
-      <div className="pipeline-metrics">
-        <span>기사 {pipeline?.articleCount || 0}</span>
-        <span>키워드 {pipeline?.keywordCount || 0}</span>
-        <span>카테고리 {pipeline?.categoryCount || 0}</span>
-      </div>
-      {Boolean(pipeline?.sourceCount || pipeline?.failedSourceCount) && (
-        <small>
-          RSS {pipeline?.sourceCount || 0}개
-          {pipeline?.failedSourceCount > 0
-            ? ` · 일부 RSS 지연 ${pipeline.failedSourceCount}개`
-            : ""}
-        </small>
+      {normalizedStatus !== "completed" && normalizedStatus !== "failed" && (
+        <p>{statusCopy.detail}</p>
       )}
+      <div className="pipeline-metrics">
+        <span>기사 {formatNumber(pipeline?.articleCount)}</span>
+        <span>키워드 {formatNumber(pipeline?.keywordCount)}</span>
+        <span>카테고리 {formatNumber(pipeline?.categoryCount)}</span>
+      </div>
+      {rssSummary && <small>{rssSummary}</small>}
+      <small className="pipeline-method">
+        중복 제거 · 불용어 필터 · 동시 등장 연결
+      </small>
       {normalizedStatus === "failed" && pipeline?.errorMessage && (
         <em>{pipeline.errorMessage}</em>
       )}
