@@ -12,10 +12,11 @@ import {
 import IntroScreen from "./IntroScreen";
 import PipelineStatus from "./PipelineStatus";
 import SignalSummaryCard from "./SignalSummaryCard";
+import { TREND_API_BASE_URL } from "./apiConfig";
 import { buildSignalAnalysis } from "./utils/signalAnalysis";
 import "./App.css";
 
-const API_BASE_URL = "http://localhost:4000/api/trends";
+const API_BASE_URL = TREND_API_BASE_URL;
 const FILTERS = [
   { label: "오늘", value: "1" },
   { label: "3일", value: "3" },

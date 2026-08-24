@@ -9,8 +9,22 @@ require("dotenv").config();
 const app = express();
 
 const PORT = process.env.PORT || 4000;
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+app.use(
+  cors(
+    allowedOrigins.length > 0
+      ? {
+          origin(origin, callback) {
+            callback(null, !origin || allowedOrigins.includes(origin));
+          },
+        }
+      : undefined
+  )
+);
 app.use(express.json());
 app.use("/api/trends", trendRoutes);
 app.use("/api/pipeline", pipelineRoutes);
@@ -26,6 +40,14 @@ mongoose
 
 app.get("/", (req, res) => {
   res.send("Trend Radar API 서버 실행 중");
+});
+
+app.get("/health", (_req, res) => {
+  const databaseConnected = mongoose.connection.readyState === 1;
+  res.status(databaseConnected ? 200 : 503).json({
+    ok: databaseConnected,
+    database: databaseConnected ? "connected" : "disconnected",
+  });
 });
 
 app.listen(PORT, () => {

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-
-const PIPELINE_STATUS_URL = "http://localhost:4000/api/pipeline/status";
+import { PIPELINE_STATUS_URL } from "./apiConfig";
 
 const STATUS_COPY = {
   collecting: {
