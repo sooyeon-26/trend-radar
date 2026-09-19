@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -57,4 +58,12 @@ test("원본 키워드 배열을 바꾸지 않고 요약 결과를 만든다", (
   assert.equal(result.signalType, "급상승 신호");
   assert.deepEqual(result.relatedKeywords, ["반도체", "수출", "환율"]);
   assert.equal(relatedKeywords.length, 4);
+});
+
+test("대시보드 요청 실패 시 사용자가 다시 시도할 수 있는 안내를 제공한다", async () => {
+  const appSource = await readFile(new URL("../App.jsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /role="alert"/);
+  assert.match(appSource, /다시 시도/);
+  assert.match(appSource, /setDashboardError\("트렌드 데이터를 불러오지 못했습니다/);
 });

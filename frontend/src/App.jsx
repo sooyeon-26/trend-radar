@@ -309,6 +309,7 @@ function App() {
   const [focusedNodeId, setFocusedNodeId] = useState(null);
   const [articlesExpanded, setArticlesExpanded] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
 
   useEffect(() => {
     fetchDashboard(range, selectedCategory);
@@ -334,6 +335,7 @@ function App() {
 
   const fetchDashboard = (selectedRange, category) => {
     const categoryQuery = getCategoryQuery(category);
+    setDashboardError("");
 
     Promise.all([
       axios.get(`${API_BASE_URL}/galaxies?days=${selectedRange}`),
@@ -342,6 +344,7 @@ function App() {
     ])
       .then(([galaxyResponse, topResponse, universeResponse]) => {
         const topTrends = topResponse.data.trends || [];
+        setDashboardError("");
 
         setGalaxies(galaxyResponse.data.galaxies || []);
         setTrends(topTrends);
@@ -370,6 +373,7 @@ function App() {
       })
       .catch((error) => {
         console.error("Failed to load dashboard data:", error);
+        setDashboardError("트렌드 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
       });
   };
 
@@ -388,6 +392,7 @@ function App() {
     const categoryQuery = getCategoryQuery(category);
 
     setSelectedKeyword(trimmedKeyword);
+    setDashboardError("");
     if (options.focus) {
       setFocusedNodeId(`keyword:${trimmedKeyword}`);
     }
@@ -406,6 +411,7 @@ function App() {
       })
       .catch((error) => {
         console.error("Failed to load keyword data:", error);
+        setDashboardError("선택한 키워드의 상세 데이터를 불러오지 못했습니다. 다시 시도해주세요.");
       });
   };
 
@@ -777,6 +783,17 @@ function App() {
       }}
     >
       {showIntro && <IntroScreen onEnter={() => setShowIntro(false)} />}
+      {dashboardError && (
+        <div className="dashboard-error" role="alert">
+          <div>
+            <strong>{dashboardError}</strong>
+            <span>{latestDate === "-" ? "연결 상태를 확인하고 다시 시도해주세요." : `마지막 정상 데이터: ${latestDate}`}</span>
+          </div>
+          <button type="button" onClick={() => fetchDashboard(range, selectedCategory)}>
+            다시 시도
+          </button>
+        </div>
+      )}
       <section
         className="density-hero density-hero-inside"
         aria-label="키워드 밀도 지도"
