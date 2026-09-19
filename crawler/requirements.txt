@@ -1,0 +1,5 @@
+certifi>=2024.8.30
+feedparser>=6.0.11
+kiwipiepy>=0.20.3
+pymongo>=4.10.1
+python-dotenv>=1.0.1

@@ -26,7 +26,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install crawler dependencies
-        run: pip install requests beautifulsoup4 pymongo python-dotenv feedparser certifi kiwipiepy
+        run: pip install -r crawler/requirements.txt
 
       - name: Validate MongoDB secret
         run: |
