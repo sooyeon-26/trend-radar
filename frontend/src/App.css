@@ -884,6 +884,11 @@ button {
   box-shadow: 0 0 10px rgba(148, 163, 184, 0.18);
 }
 
+.pipeline-dot-stale {
+  background: #fbbf24;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.28);
+}
+
 .pipeline-card p {
   margin: 0;
   color: rgba(203, 213, 225, 0.78);
@@ -942,6 +947,36 @@ button {
 
 .pipeline-card-failed em {
   color: rgba(253, 164, 175, 0.78);
+}
+
+.pipeline-card-stale {
+  border-color: rgba(251, 191, 36, 0.22);
+}
+
+.pipeline-stale-notice {
+  color: rgba(253, 230, 138, 0.78) !important;
+}
+
+.pipeline-retry {
+  margin-top: 10px;
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(251, 113, 133, 0.08);
+  color: #fecdd3;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pipeline-retry:hover {
+  background: rgba(251, 113, 133, 0.14);
+}
+
+.pipeline-retry:focus-visible {
+  outline: 2px solid rgba(251, 113, 133, 0.72);
+  outline-offset: 2px;
 }
 
 @keyframes pipeline-pulse {

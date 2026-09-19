@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { PIPELINE_STATUS_URL } from "./apiConfig";
 
@@ -87,6 +87,8 @@ function formatRssSummary(sourceCount = 0, failedSourceCount = 0) {
 export default function PipelineStatus() {
   const [pipeline, setPipeline] = useState(null);
   const [loadState, setLoadState] = useState("loading");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const hasSuccessfulResponse = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -99,6 +101,7 @@ export default function PipelineStatus() {
             return;
           }
 
+          hasSuccessfulResponse.current = true;
           setPipeline(response.data);
           setLoadState("success");
         })
@@ -107,7 +110,7 @@ export default function PipelineStatus() {
             return;
           }
 
-          setLoadState("error");
+          setLoadState(hasSuccessfulResponse.current ? "stale" : "error");
         });
     };
 
@@ -118,7 +121,7 @@ export default function PipelineStatus() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [refreshKey]);
 
   const normalizedStatus = pipeline?.status || "empty";
   const statusCopy = STATUS_COPY[normalizedStatus] || STATUS_COPY.empty;
@@ -137,7 +140,7 @@ export default function PipelineStatus() {
 
   if (loadState === "loading") {
     return (
-      <section className="pipeline-card pipeline-card-loading">
+      <section className="pipeline-card pipeline-card-loading" aria-live="polite">
         <div className="pipeline-heading">
           <span>수집·분석 상태</span>
           <strong>
@@ -152,7 +155,7 @@ export default function PipelineStatus() {
 
   if (loadState === "error") {
     return (
-      <section className="pipeline-card pipeline-card-failed">
+      <section className="pipeline-card pipeline-card-failed" aria-live="polite">
         <div className="pipeline-heading">
           <span>수집·분석 상태</span>
           <strong>
@@ -160,18 +163,39 @@ export default function PipelineStatus() {
             조회 실패
           </strong>
         </div>
-        <p>데이터 상태를 불러오지 못했습니다</p>
+        <p>데이터 상태를 불러오지 못했습니다. 잠시 후 자동으로 다시 확인합니다.</p>
+        <button
+          className="pipeline-retry"
+          type="button"
+          onClick={() => {
+            setLoadState("loading");
+            setRefreshKey((value) => value + 1);
+          }}
+        >
+          지금 다시 시도
+        </button>
       </section>
     );
   }
 
   return (
-    <section className={`pipeline-card pipeline-card-${normalizedStatus}`}>
+    <section
+      className={`pipeline-card pipeline-card-${
+        loadState === "stale" ? "stale" : normalizedStatus
+      }`}
+      aria-live="polite"
+    >
       <div className="pipeline-heading">
         <span>수집·분석 상태</span>
         <strong>
-          <i className={`pipeline-dot pipeline-dot-${normalizedStatus}`} />
-          {statusLine}
+          <i
+            className={`pipeline-dot pipeline-dot-${
+              loadState === "stale" ? "stale" : normalizedStatus
+            }`}
+          />
+          {loadState === "stale"
+            ? `상태 갱신 지연 · 마지막 수집 ${lastCollectedLabel}`
+            : statusLine}
         </strong>
       </div>
       {normalizedStatus !== "completed" && normalizedStatus !== "failed" && (
@@ -183,6 +207,11 @@ export default function PipelineStatus() {
         <span>카테고리 {formatNumber(pipeline?.categoryCount)}</span>
       </div>
       {rssSummary && <small>{rssSummary}</small>}
+      {loadState === "stale" && (
+        <small className="pipeline-stale-notice">
+          마지막으로 확인한 수집 결과를 표시하고 있습니다. API 연결을 다시 확인 중입니다.
+        </small>
+      )}
       <small className="pipeline-method">
         중복 제거 · 불용어 필터 · 동시 등장 연결
       </small>

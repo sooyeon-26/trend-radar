@@ -83,15 +83,21 @@ npm run dev
 ## 확인 명령
 
 ```bash
+cd backend
+npm test
+
 cd frontend
 npm run lint
 npm test
 npm run build
 ```
 
+Vercel의 새 서버리스 인스턴스가 시작될 때 MongoDB 연결이 일시적으로 실패하면 다음 API 요청에서 다시 연결을 시도합니다. 연결할 수 없는 동안 API는 `Retry-After` 헤더와 함께 `503 DATABASE_UNAVAILABLE`을 반환하며, 화면은 마지막으로 확인한 수집 결과와 갱신 지연 상태를 구분해 표시합니다.
+
 ## 주요 API
 
 ```text
+GET /api/health
 GET /api/pipeline/status
 GET /api/trends/galaxies?days=1|3|7
 GET /api/trends/top?days=1|3|7|all&category=society
